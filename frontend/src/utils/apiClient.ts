@@ -1,12 +1,50 @@
 import axios, { AxiosInstance } from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+// Smart API URL detection
+// In Docker/Container: use the service name (http://backend:5000)
+// In Browser on Host: use localhost:5001 (the exposed port)
+// Build-time env: use VITE_API_URL if provided
+function getApiUrl(): string {
+  // Priority 1: Use build-time environment variable if set
+  const buildTimeUrl = import.meta.env.VITE_API_URL;
+  if (buildTimeUrl && buildTimeUrl !== 'undefined') {
+    console.log('[API Client] Using build-time VITE_API_URL:', buildTimeUrl);
+    return buildTimeUrl;
+  }
+  
+  // Priority 2: Detect runtime environment
+  // In Node/SSR context (where we can't access window), use docker service name
+  if (typeof window === 'undefined') {
+    console.log('[API Client] Using Docker service name (Node context)');
+    return 'http://backend:5000';
+  }
+  
+  // Priority 3: Browser running on host - use relative or localhost
+  // Check if we're accessing from localhost or 127.0.0.1
+  const hostname = window.location.hostname;
+  const protocol = window.location.protocol;
+  
+  if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '0.0.0.0') {
+    // Browser accessing from localhost - API should also be on localhost
+    const apiUrl = `${protocol}//localhost:5001`;
+    console.log('[API Client] Using localhost URL for browser:', apiUrl);
+    return apiUrl;
+  }
+  
+  // Priority 4: Remote access - assume same domain, use /api proxy
+  console.log('[API Client] Using same-origin API for remote access');
+  return '/api';
+}
+
+const API_URL = getApiUrl();
 
 class ApiClient {
   private client: AxiosInstance;
   private accessToken: string | null = null;
 
   constructor() {
+    console.log('[API Client] Initializing with API_URL:', API_URL);
+    
     this.client = axios.create({
       baseURL: API_URL,
       headers: {
@@ -24,6 +62,21 @@ class ApiClient {
       }
       return config;
     });
+
+    // Add error interceptor for better debugging
+    this.client.interceptors.response.use(
+      (response) => response,
+      (error) => {
+        console.error('[API Error]', {
+          message: error.message,
+          status: error.response?.status,
+          data: error.response?.data,
+          url: error.config?.url,
+          baseURL: error.config?.baseURL,
+        });
+        return Promise.reject(error);
+      }
+    );
   }
 
   setAccessToken(token: string) {

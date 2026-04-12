@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import { config } from './config';
 import { initializeDatabase } from './db/schema';
+import { seedDatabase } from './db/seed';
 import { authenticate, checkSessionTimeout } from './middleware/auth';
 import { auditLog } from './middleware/auditLog';
 import authRoutes from './routes/auth';
@@ -31,6 +32,17 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// Seed endpoint (for demo purposes)
+app.post('/api/seed', async (req, res) => {
+  try {
+    await seedDatabase();
+    res.json({ status: 'ok', message: 'Database seeded successfully' });
+  } catch (err) {
+    console.error('Error seeding database:', err);
+    res.status(500).json({ error: 'Failed to seed database' });
+  }
+});
+
 // Auth routes (public)
 app.use('/api/auth', authRoutes);
 
@@ -53,6 +65,13 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 async function startServer() {
   try {
     await initializeDatabase();
+    
+    // Check if SEED_DATABASE env var is set
+    if (process.env.SEED_DATABASE === 'true') {
+      console.log('🌱 Auto-seeding database...');
+      await seedDatabase();
+    }
+    
     app.listen(config.port, () => {
       console.log(`🏥 Medical notes app running on port ${config.port}`);
       console.log(`Environment: ${config.nodeEnv}`);
