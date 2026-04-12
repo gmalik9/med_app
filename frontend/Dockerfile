@@ -1,4 +1,4 @@
-FROM node:18-alpine as builder
+FROM node:20-alpine as builder
 
 WORKDIR /app
 
@@ -10,12 +10,11 @@ COPY . .
 
 # Build frontend - skip type checking for Docker build
 ENV SKIP_TYPE_CHECK=true
-ARG VITE_API_URL=http://backend:5000
-ENV VITE_API_URL=$VITE_API_URL
-RUN npm run build 2>&1 || true
+# Don't set VITE_API_URL at build time - let it be determined at runtime by the browser
+RUN npm run build
 
 # Production stage
-FROM node:18-alpine
+FROM node:20-alpine
 
 WORKDIR /app
 

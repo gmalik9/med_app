@@ -32,27 +32,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = async (email: string, password: string) => {
-    const response = await apiClient.login(email, password);
-    const { user: userData, accessToken, refreshToken: rt } = response.data;
-    
-    apiClient.setAccessToken(accessToken);
-    localStorage.setItem('user', JSON.stringify(userData));
-    localStorage.setItem('refreshToken', rt);
-    
-    setUser(userData);
-    setIsAuthenticated(true);
+    try {
+      const response = await apiClient.login(email, password);
+      const { user: userData, accessToken, refreshToken: rt } = response.data;
+      
+      apiClient.setAccessToken(accessToken);
+      localStorage.setItem('user', JSON.stringify(userData));
+      localStorage.setItem('refreshToken', rt);
+      
+      setUser(userData);
+      setIsAuthenticated(true);
+    } catch (error: any) {
+      console.error('[AuthContext] Login error:', {
+        message: error.message,
+        status: error.response?.status,
+        data: error.response?.data,
+        config: error.config,
+      });
+      throw error;
+    }
   };
 
   const register = async (email: string, password: string, firstName: string, lastName: string) => {
-    const response = await apiClient.register(email, password, firstName, lastName);
-    const { user: userData, accessToken, refreshToken: rt } = response.data;
-    
-    apiClient.setAccessToken(accessToken);
-    localStorage.setItem('user', JSON.stringify(userData));
-    localStorage.setItem('refreshToken', rt);
-    
-    setUser(userData);
-    setIsAuthenticated(true);
+    try {
+      const response = await apiClient.register(email, password, firstName, lastName);
+      const { user: userData, accessToken, refreshToken: rt } = response.data;
+      
+      apiClient.setAccessToken(accessToken);
+      localStorage.setItem('user', JSON.stringify(userData));
+      localStorage.setItem('refreshToken', rt);
+      
+      setUser(userData);
+      setIsAuthenticated(true);
+    } catch (error: any) {
+      console.error('[AuthContext] Register error:', {
+        message: error.message,
+        status: error.response?.status,
+        data: error.response?.data,
+        config: error.config,
+      });
+      throw error;
+    }
   };
 
   const logout = () => {

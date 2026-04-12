@@ -37,7 +37,7 @@ usage() {
     cat << EOF
 ${BLUE}Medical Notes App - Docker Manager${NC}
 
-Usage: $0 [COMMAND]
+Usage: $0 [COMMAND] [OPTIONS]
 
 Commands:
   start     - Start all services (PostgreSQL, Backend, Frontend)
@@ -53,8 +53,13 @@ Commands:
   clean     - Stop services and remove all volumes/data
   health    - Check health of all services
 
+Options:
+  dummy     - For 'start' or 'restart': seed database with dummy data (e.g., 'start dummy')
+
 Examples:
   $0 start
+  $0 start dummy
+  $0 restart dummy
   $0 stop
   $0 logs
   $0 restart
@@ -64,8 +69,18 @@ EOF
 
 # Function to start services
 start_services() {
+    local seed_db="${1:-false}"
+    
     print_info "Starting Medical Notes App..."
     cd "$SCRIPT_DIR"
+    
+    # Set SEED_DATABASE env var if dummy data requested
+    if [ "$seed_db" = "true" ]; then
+        export SEED_DATABASE=true
+        print_info "Dummy data will be seeded on startup"
+    else
+        export SEED_DATABASE=false
+    fi
     
     if docker-compose up -d; then
         print_status "All services started successfully!"
@@ -73,13 +88,19 @@ start_services() {
         sleep 3
         
         print_info "Service URLs:"
-        echo "  Frontend:   ${GREEN} http://localhost:5173 ${NC}"
-        echo "  Backend:    ${GREEN} http://localhost:5001 ${NC}"
-        echo "  Database:   ${GREEN} http://localhost:5432 ${NC}"
+        echo "  Frontend:   http://localhost:5173"
+        echo "  Backend:    http://localhost:5001"
+        echo "  Database:   localhost:5432"
         
         print_info "Default credentials:"
         echo "  Email:      doctor@hospital.com"
         echo "  Password:   SecurePass123!"
+        
+        if [ "$seed_db" = "true" ]; then
+            print_info "Seeding database with dummy data..."
+            sleep 2
+            curl -s -X POST http://localhost:5001/api/seed > /dev/null 2>&1 && print_status "Database seeded!" || print_warning "Dummy data seeding may have failed, check logs"
+        fi
         
         return 0
     else
@@ -104,10 +125,11 @@ stop_services() {
 
 # Function to restart services
 restart_services() {
+    local seed_db="${1:-false}"
     print_info "Restarting Medical Notes App..."
     stop_services
     sleep 2
-    start_services
+    start_services "$seed_db"
 }
 
 # Function to show status
@@ -224,13 +246,21 @@ check_health() {
 # Main script logic
 case "${1:-}" in
     start)
-        start_services
+        if [ "${2:-}" = "dummy" ]; then
+            start_services "true"
+        else
+            start_services "false"
+        fi
         ;;
     stop)
         stop_services
         ;;
     restart)
-        restart_services
+        if [ "${2:-}" = "dummy" ]; then
+            restart_services "true"
+        else
+            restart_services "false"
+        fi
         ;;
     status)
         show_status

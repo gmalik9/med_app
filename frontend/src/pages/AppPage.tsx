@@ -7,7 +7,9 @@ import VitalsCard from '../components/VitalsCard';
 import AppointmentsCard from '../components/AppointmentsCard';
 import VisitsCard from '../components/VisitsCard';
 import TemplatesAnalyticsPanel from '../components/TemplatesAnalyticsPanel';
+import ScheduledVisitsPanel from '../components/ScheduledVisitsPanel';
 import DoctorDashboard from '../components/DoctorDashboard';
+import DoctorProfile from '../components/DoctorProfile';
 import { PatientsListPage } from './PatientsListPage';
 import { useAuth } from '../hooks/useAuth';
 
@@ -33,7 +35,7 @@ export function AppPage() {
   const [searchError, setSearchError] = useState('');
   const [patient, setPatient] = useState<Patient | null>(null);
   const [patientExists, setPatientExists] = useState(false);
-  const [step, setStep] = useState<'search' | 'create' | 'edit' | 'patients' | 'dashboard'>('search');
+  const [step, setStep] = useState<'search' | 'create' | 'edit' | 'patients' | 'dashboard' | 'profile'>('search');
   const [loading, setLoading] = useState(false);
   const { logout, user } = useAuth();
 
@@ -113,6 +115,9 @@ export function AppPage() {
         </div>
         <div style={styles.userInfo}>
           <span>{user?.email}</span>
+          <button onClick={() => setStep('profile')} style={styles.profileBtn}>
+            👤 Profile
+          </button>
           <button onClick={logout} style={styles.logoutBtn}>
             Logout
           </button>
@@ -120,6 +125,10 @@ export function AppPage() {
       </header>
 
       <main style={styles.main}>
+        {step === 'profile' && (
+          <DoctorProfile onClose={() => setStep('search')} />
+        )}
+
         {step === 'dashboard' && (
           <div>
             <button onClick={() => setStep('search')} style={styles.backButton}>
@@ -203,6 +212,8 @@ export function AppPage() {
 
             <VisitsCard patientId={patient.id} />
 
+            <ScheduledVisitsPanel patientId={patient.id} />
+
             <TemplatesAnalyticsPanel patientId={patient.id} />
 
             <PatientHistory patientId={patient.id} />
@@ -262,6 +273,16 @@ const styles = {
     display: 'flex',
     gap: '16px',
     alignItems: 'center',
+  } as React.CSSProperties,
+  profileBtn: {
+    padding: '8px 16px',
+    backgroundColor: '#0066cc',
+    color: 'white',
+    border: 'none',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    fontSize: '14px',
+    fontWeight: '600',
   } as React.CSSProperties,
   logoutBtn: {
     padding: '8px 16px',
