@@ -75,6 +75,14 @@ class ApiClient {
     return this.client.get(`/api/patients/${id}`);
   }
 
+  getPatients() {
+    return this.client.get('/api/patients/');
+  }
+
+  updatePatientStatus(id: number, is_active: boolean) {
+    return this.client.patch(`/api/patients/${id}/active`, { is_active });
+  }
+
   updatePatient(id: number, data: any) {
     return this.client.put(`/api/patients/${id}`, data);
   }
@@ -84,8 +92,8 @@ class ApiClient {
     return this.client.get(`/api/notes/patient/${patientId}`, { params: { date } });
   }
 
-  saveNote(patientId: number, noteText: string, date?: string) {
-    return this.client.post(`/api/notes/patient/${patientId}`, { noteText, date });
+  saveNote(patientId: number, noteText: string, date?: string, medicalCodes: string[] = []) {
+    return this.client.post(`/api/notes/patient/${patientId}`, { noteText, date, medicalCodes });
   }
 
   getNoteHistory(patientId: number, limit?: number) {
@@ -121,6 +129,10 @@ class ApiClient {
 
   getAppointmentHistory(patientId: number) {
     return this.client.get(`/api/appointments/patient/${patientId}/history`);
+  }
+
+  updateAppointmentStatus(appointmentId: number, status: string) {
+    return this.client.put(`/api/appointments/${appointmentId}/status`, { status });
   }
 
   // Phase 2: Visit History

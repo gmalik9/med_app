@@ -29,6 +29,7 @@ export async function initializeDatabase() {
         patient_id VARCHAR(50) UNIQUE NOT NULL,
         first_name VARCHAR(255),
         last_name VARCHAR(255),
+        gender VARCHAR(50),
         dob DATE,
         phone VARCHAR(20),
         email VARCHAR(255),
@@ -39,9 +40,15 @@ export async function initializeDatabase() {
         emergency_contact VARCHAR(255),
         emergency_phone VARCHAR(20),
         created_by INTEGER REFERENCES users(id),
+        is_active BOOLEAN DEFAULT true,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
+    `);
+
+    await query(`
+      ALTER TABLE patients
+      ADD COLUMN IF NOT EXISTS gender VARCHAR(50)
     `);
 
     // Create clinical_notes table
@@ -52,6 +59,7 @@ export async function initializeDatabase() {
         doctor_id INTEGER NOT NULL REFERENCES users(id),
         note_date DATE NOT NULL,
         note_text TEXT,
+        medical_codes JSONB DEFAULT '[]'::jsonb,
         note_type VARCHAR(50) DEFAULT 'general',
         diagnosis TEXT,
         treatment_plan TEXT,
@@ -60,6 +68,11 @@ export async function initializeDatabase() {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(patient_id, doctor_id, note_date)
       )
+    `);
+
+    await query(`
+      ALTER TABLE clinical_notes
+      ADD COLUMN IF NOT EXISTS medical_codes JSONB DEFAULT '[]'::jsonb
     `);
 
     // Create vital_signs table (Phase 2)
