@@ -15,11 +15,24 @@ export async function initializeDatabase() {
         role VARCHAR(50) DEFAULT 'doctor',
         specialty VARCHAR(255),
         license_number VARCHAR(255),
+        phone VARCHAR(20),
+        bio TEXT,
         is_active BOOLEAN DEFAULT true,
         last_login TIMESTAMP,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
+    `);
+    
+    // Add missing columns to existing users table if needed
+    await query(`
+      ALTER TABLE users
+      ADD COLUMN IF NOT EXISTS phone VARCHAR(20)
+    `);
+    
+    await query(`
+      ALTER TABLE users
+      ADD COLUMN IF NOT EXISTS bio TEXT
     `);
 
     // Create patients table
