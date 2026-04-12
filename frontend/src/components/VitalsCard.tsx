@@ -18,16 +18,32 @@ export default function VitalsCard({ patientId }: Props) {
     notes: '',
   });
   const [latest, setLatest] = useState<any>(null);
+  const [history, setHistory] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [showHistory, setShowHistory] = useState(false);
 
   const loadLatest = async () => {
-    const response = await apiClient.getLatestVitals(patientId);
-    setLatest(response.data.vitalSigns);
+    try {
+      const response = await apiClient.getLatestVitals(patientId);
+      setLatest(response.data.vitalSigns);
+    } catch (err) {
+      console.error('Error loading latest vitals:', err);
+    }
+  };
+
+  const loadHistory = async () => {
+    try {
+      const response = await apiClient.getVitalsHistory(patientId, 20);
+      setHistory(response.data.vitals || []);
+    } catch (err) {
+      console.error('Error loading vitals history:', err);
+    }
   };
 
   useEffect(() => {
-    loadLatest().catch(() => undefined);
+    loadLatest();
+    loadHistory();
   }, [patientId]);
 
   const handleChange = (key: string, value: string) => setForm((prev) => ({ ...prev, [key]: value }));
@@ -50,6 +66,7 @@ export default function VitalsCard({ patientId }: Props) {
       });
       setForm({ temperature: '', heartRate: '', bloodPressureSystolic: '', bloodPressureDiastolic: '', respiratoryRate: '', oxygenSaturation: '', weight: '', height: '', notes: '' });
       await loadLatest();
+      await loadHistory();
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to record vitals');
     } finally {
@@ -78,6 +95,41 @@ export default function VitalsCard({ patientId }: Props) {
         <textarea placeholder="Notes" value={form.notes} onChange={(e) => handleChange('notes', e.target.value)} style={styles.textarea} />
         <button type="submit" disabled={saving} style={styles.button}>{saving ? 'Saving...' : 'Record Vitals'}</button>
       </form>
+
+      <div style={styles.historySection}>
+        <button
+          type="button"
+          onClick={() => setShowHistory(!showHistory)}
+          style={styles.toggleButton}
+        >
+          {showHistory ? '▼ Hide' : '▶ Show'} Vitals History
+        </button>
+        
+        {showHistory && (
+          <div style={styles.history}>
+            {history.length > 0 ? (
+              history.map((vital, idx) => (
+                <div key={idx} style={styles.historyItem}>
+                  <div style={styles.vitalTimestamp}>
+                    {new Date(vital.recorded_date).toLocaleString()}
+                  </div>
+                  <div style={styles.vitalValues}>
+                    {vital.temperature && <span>🌡️ {vital.temperature}°C</span>}
+                    {vital.heart_rate && <span>❤️ {vital.heart_rate} bpm</span>}
+                    {vital.blood_pressure_systolic && <span>🩸 {vital.blood_pressure_systolic}/{vital.blood_pressure_diastolic} mmHg</span>}
+                    {vital.oxygen_saturation && <span>O₂ {vital.oxygen_saturation}%</span>}
+                    {vital.weight && <span>⚖️ {vital.weight} kg</span>}
+                    {vital.height && <span>📏 {vital.height} cm</span>}
+                  </div>
+                  {vital.notes && <div style={styles.vitalNotes}>{vital.notes}</div>}
+                </div>
+              ))
+            ) : (
+              <div style={styles.noHistory}>No vitals recorded yet</div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -91,4 +143,12 @@ const styles: Record<string, React.CSSProperties> = {
   input: { padding: 10, border: '1px solid #ddd', borderRadius: 6 },
   textarea: { gridColumn: '1 / -1', padding: 10, border: '1px solid #ddd', borderRadius: 6, minHeight: 80 },
   button: { gridColumn: '1 / -1', padding: '10px 16px', background: '#0066cc', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer' },
+  historySection: { marginTop: 20, paddingTop: 20, borderTop: '1px solid #eee' },
+  toggleButton: { padding: '8px 16px', background: '#6c757d', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: '13px' },
+  history: { marginTop: 12, maxHeight: '400px', overflowY: 'auto' },
+  historyItem: { padding: '10px', marginBottom: '8px', background: '#f9f9f9', borderRadius: '6px', borderLeft: '3px solid #0066cc' },
+  vitalTimestamp: { fontSize: '11px', color: '#666', marginBottom: '6px', fontWeight: 'bold' },
+  vitalValues: { display: 'flex', gap: '12px', flexWrap: 'wrap', fontSize: '12px' },
+  vitalNotes: { fontSize: '11px', color: '#666', marginTop: '6px', fontStyle: 'italic' },
+  noHistory: { padding: '12px', textAlign: 'center', color: '#999', fontSize: '13px' },
 };

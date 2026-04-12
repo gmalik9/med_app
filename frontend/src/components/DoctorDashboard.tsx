@@ -20,6 +20,13 @@ export default function DoctorDashboard() {
 
   useEffect(() => {
     loadDashboardData();
+    
+    // Set up automatic refresh every 30 seconds
+    const refreshInterval = setInterval(() => {
+      loadDashboardData();
+    }, 30000);
+    
+    return () => clearInterval(refreshInterval);
   }, []);
 
   const loadDashboardData = async () => {
