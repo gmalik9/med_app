@@ -64,6 +64,7 @@ git push origin main
    JWT_SECRET=<generate a secure random string>
    JWT_REFRESH_SECRET=<generate another secure random string>
    ALLOWED_ORIGINS=https://med-app-frontend.onrender.com
+   ALLOWED_ORIGINS=https://med-app-frontend\..*\.onrender\.com
    SESSION_TIMEOUT_MINUTES=30
    SEED_DATABASE=false
    ```
