@@ -50,6 +50,7 @@ Commands:
   frontend  - View frontend logs only
   postgres  - View postgres logs only
   build     - Build all Docker images
+  rebuild   - Clean, build, and start with dummy data (full fresh setup)
   clean     - Stop services and remove all volumes/data
   health    - Check health of all services
 
@@ -59,6 +60,7 @@ Options:
 Examples:
   $0 start
   $0 start dummy
+  $0 rebuild
   $0 restart dummy
   $0 stop
   $0 logs
@@ -243,7 +245,58 @@ check_health() {
     fi
 }
 
-# Main script logic
+# Function to rebuild (clean, build, and start with dummy data)
+rebuild() {
+    print_warning "This will perform a complete rebuild:"
+    print_info "1. Stop all services"
+    print_info "2. Remove all volumes and data"
+    print_info "3. Build all images fresh"
+    print_info "4. Start with dummy data"
+    echo ""
+    read -p "Are you sure? (yes/no): " confirm
+    
+    if [ "$confirm" != "yes" ]; then
+        print_info "Cancelled"
+        return 0
+    fi
+    
+    print_info "Starting rebuild..."
+    
+    # Clean
+    print_info "Stopping services and removing volumes..."
+    cd "$SCRIPT_DIR"
+    docker-compose down -v 2>/dev/null || true
+    
+    # Build
+    print_info "Building Docker images..."
+    if ! docker-compose build --no-cache; then
+        print_error "Failed to build Docker images"
+        return 1
+    fi
+    
+    # Start with dummy data
+    print_info "Starting services with dummy data..."
+    export SEED_DATABASE=true
+    if docker-compose up -d; then
+        print_status "Rebuild completed successfully!"
+        print_info "Waiting for services to be ready..."
+        sleep 5
+        
+        print_info "Service URLs:"
+        echo "  Frontend:   ${GREEN}http://localhost:5173${NC}"
+        echo "  Backend:    ${GREEN}http://localhost:5001${NC}"
+        echo "  Database:   ${GREEN}localhost:5432${NC}"
+        
+        print_info "Default credentials:"
+        echo "  Email:      doctor@hospital.com"
+        echo "  Password:   SecurePass123!"
+        
+        return 0
+    else
+        print_error "Failed to start services"
+        return 1
+    fi
+}
 case "${1:-}" in
     start)
         if [ "${2:-}" = "dummy" ]; then
@@ -282,6 +335,9 @@ case "${1:-}" in
         ;;
     build)
         build_images
+        ;;
+    rebuild)
+        rebuild
         ;;
     clean)
         clean_all
