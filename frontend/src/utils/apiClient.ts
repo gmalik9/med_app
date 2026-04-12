@@ -111,6 +111,14 @@ class ApiClient {
     return this.client.post('/api/auth/refresh', { refreshToken });
   }
 
+  getDoctorProfile() {
+    return this.client.get('/api/auth/profile');
+  }
+
+  updateDoctorProfile(data: any) {
+    return this.client.put('/api/auth/profile', data);
+  }
+
   // Patient endpoints
   searchPatient(patientId: string) {
     return this.client.get('/api/patients/search', { params: { patientId } });
