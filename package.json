@@ -1,0 +1,20 @@
+{
+  "name": "medical-notes-app",
+  "version": "1.0.0",
+  "description": "Secure patient notes management system",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"npm run dev --workspace=backend\" \"npm run dev --workspace=frontend\"",
+    "build": "npm run build --workspace=backend && npm run build --workspace=frontend",
+    "start": "npm start --workspace=backend",
+    "docker:up": "docker-compose up",
+    "docker:down": "docker-compose down"
+  },
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "devDependencies": {
+    "concurrently": "^8.0.0"
+  }
+}
