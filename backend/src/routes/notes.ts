@@ -4,16 +4,37 @@ import { authenticate } from '../middleware/auth';
 
 const router = Router();
 
+const normalizeDateInput = (value?: string) => {
+  if (!value) {
+    const today = new Date();
+    return today.toISOString().split('T')[0]; // YYYY-MM-DD format
+  }
+
+  const trimmed = value.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    return trimmed; // Already in correct format
+  }
+
+  const parsed = new Date(trimmed);
+  if (Number.isNaN(parsed.getTime())) {
+    const today = new Date();
+    return today.toISOString().split('T')[0];
+  }
+
+  // Convert any date to YYYY-MM-DD format
+  return parsed.toISOString().split('T')[0];
+};
+
 // Get today's note for patient (or any specific date)
 router.get('/patient/:patientId', authenticate, async (req: Request, res: Response) => {
   try {
     const { patientId } = req.params;
     const { date } = req.query;
 
-    const noteDate = date ? new Date(date as string).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+    const noteDate = normalizeDateInput(date as string | undefined);
 
     const result = await query(
-      `SELECT cn.id, cn.patient_id, cn.doctor_id, cn.note_date, cn.note_text, cn.created_at, cn.updated_at
+      `SELECT cn.id, cn.patient_id, cn.doctor_id, cn.note_date, cn.note_text, cn.medical_codes, cn.created_at, cn.updated_at
        FROM clinical_notes cn
        JOIN patients p ON cn.patient_id = p.id
        WHERE p.id = $1 AND cn.note_date = $2 AND cn.doctor_id = $3`,
@@ -35,13 +56,16 @@ router.get('/patient/:patientId', authenticate, async (req: Request, res: Respon
 router.post('/patient/:patientId', authenticate, async (req: Request, res: Response) => {
   try {
     const { patientId } = req.params;
-    const { noteText, date } = req.body;
+    const { noteText, date, medicalCodes = [] } = req.body;
 
     if (!noteText) {
       return res.status(400).json({ error: 'Note text required' });
     }
 
-    const noteDate = date ? new Date(date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+    const noteDate = normalizeDateInput(date);
+    const sanitizedCodes = Array.isArray(medicalCodes)
+      ? Array.from(new Set(medicalCodes.map((code) => String(code).trim().toUpperCase()).filter(Boolean)))
+      : [];
 
     // Check if patient exists
     const patientResult = await query('SELECT id FROM patients WHERE id = $1', [patientId]);
@@ -60,17 +84,17 @@ router.post('/patient/:patientId', authenticate, async (req: Request, res: Respo
     if (existing.rows.length > 0) {
       result = await query(
         `UPDATE clinical_notes 
-         SET note_text = $2, updated_at = NOW()
-         WHERE patient_id = $1 AND note_date = $3 AND doctor_id = $4
-         RETURNING id, patient_id, doctor_id, note_date, note_text, created_at, updated_at`,
-        [patientId, noteText, noteDate, req.user?.userId]
+         SET note_text = $2, medical_codes = $3::jsonb, updated_at = NOW()
+         WHERE patient_id = $1 AND note_date = $4 AND doctor_id = $5
+         RETURNING id, patient_id, doctor_id, note_date, note_text, medical_codes, created_at, updated_at`,
+        [patientId, noteText, JSON.stringify(sanitizedCodes), noteDate, req.user?.userId]
       );
     } else {
       result = await query(
-        `INSERT INTO clinical_notes (patient_id, doctor_id, note_date, note_text)
-         VALUES ($1, $2, $3, $4)
-         RETURNING id, patient_id, doctor_id, note_date, note_text, created_at, updated_at`,
-        [patientId, req.user?.userId, noteDate, noteText]
+        `INSERT INTO clinical_notes (patient_id, doctor_id, note_date, note_text, medical_codes)
+         VALUES ($1, $2, $3, $4, $5::jsonb)
+         RETURNING id, patient_id, doctor_id, note_date, note_text, medical_codes, created_at, updated_at`,
+        [patientId, req.user?.userId, noteDate, noteText, JSON.stringify(sanitizedCodes)]
       );
     }
 
@@ -96,6 +120,7 @@ router.get('/patient/:patientId/history', authenticate, async (req: Request, res
 
     const result = await query(
       `SELECT cn.id, cn.patient_id, cn.doctor_id, cn.note_date, cn.note_text, cn.created_at, cn.updated_at,
+              cn.medical_codes,
               u.first_name, u.last_name, u.email
        FROM clinical_notes cn
        JOIN users u ON cn.doctor_id = u.id
