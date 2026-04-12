@@ -283,9 +283,9 @@ rebuild() {
         sleep 5
         
         print_info "Service URLs:"
-        echo "  Frontend:   ${GREEN}http://localhost:5173${NC}"
-        echo "  Backend:    ${GREEN}http://localhost:5001${NC}"
-        echo "  Database:   ${GREEN}localhost:5432${NC}"
+        echo "  Frontend:   ${GREEN} http://localhost:5173  ${NC}"
+        echo "  Backend:    ${GREEN} http://localhost:5001  ${NC}"
+        echo "  Database:   ${GREEN} http://localhost:5432  ${NC}"
         
         print_info "Default credentials:"
         echo "  Email:      doctor@hospital.com"

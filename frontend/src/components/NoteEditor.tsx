@@ -5,6 +5,14 @@ interface NoteEditorProps {
   patientId: number;
 }
 
+interface Template {
+  id: number;
+  template_name: string;
+  template_category: string;
+  template_text: string;
+  creator_id: number;
+}
+
 export default function NoteEditor({ patientId }: NoteEditorProps) {
   const [noteText, setNoteText] = useState('');
   const [savedNote, setSavedNote] = useState<any>(null);
@@ -14,6 +22,9 @@ export default function NoteEditor({ patientId }: NoteEditorProps) {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState('');
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [templates, setTemplates] = useState<Template[]>([]);
+  const [showCreateTemplate, setShowCreateTemplate] = useState(false);
+  const [newTemplate, setNewTemplate] = useState({ name: '', category: '', text: '' });
 
   const getCodeColor = (code: string) => {
     const colors = [
@@ -41,7 +52,17 @@ export default function NoteEditor({ patientId }: NoteEditorProps) {
 
   useEffect(() => {
     loadNote();
+    loadTemplates();
   }, [patientId, selectedDate]);
+
+  const loadTemplates = async () => {
+    try {
+      const response = await apiClient.getTemplates();
+      setTemplates(response.data.templates || []);
+    } catch (err: any) {
+      console.error('Error loading templates:', err);
+    }
+  };
 
   const loadNote = async () => {
     try {
@@ -69,6 +90,35 @@ export default function NoteEditor({ patientId }: NoteEditorProps) {
 
   const removeMedicalCode = (codeToRemove: string) => {
     setMedicalCodes((prev) => prev.filter((code) => code !== codeToRemove));
+  };
+
+  const applyTemplate = (template: Template) => {
+    setNoteText(template.template_text);
+    setSuccess(`Template "${template.template_name}" applied!`);
+    setTimeout(() => setSuccess(''), 2000);
+  };
+
+  const saveTemplate = async () => {
+    if (!newTemplate.name.trim() || !newTemplate.text.trim()) {
+      setError('Template name and text are required');
+      return;
+    }
+    
+    try {
+      await apiClient.createTemplate({
+        templateName: newTemplate.name,
+        templateCategory: newTemplate.category || 'General',
+        templateText: newTemplate.text,
+        isPublic: false
+      });
+      setNewTemplate({ name: '', category: '', text: '' });
+      setShowCreateTemplate(false);
+      setSuccess('Template saved successfully!');
+      await loadTemplates();
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Failed to save template');
+    }
   };
 
   const handleSave = async () => {
@@ -117,6 +167,67 @@ export default function NoteEditor({ patientId }: NoteEditorProps) {
           style={styles.textarea}
           rows={10}
         />
+      </div>
+
+      <div style={styles.group}>
+        <div style={styles.templateHeader}>
+          <label style={styles.label}>Quick Templates</label>
+          <button
+            type="button"
+            onClick={() => setShowCreateTemplate(!showCreateTemplate)}
+            style={styles.createTemplateBtn}
+          >
+            {showCreateTemplate ? 'Cancel' : '+ Create Template'}
+          </button>
+        </div>
+
+        {showCreateTemplate && (
+          <div style={styles.templateForm}>
+            <input
+              type="text"
+              placeholder="Template Name"
+              value={newTemplate.name}
+              onChange={(e) => setNewTemplate({ ...newTemplate, name: e.target.value })}
+              style={styles.input}
+            />
+            <input
+              type="text"
+              placeholder="Category (e.g., Consultation, Follow-up)"
+              value={newTemplate.category}
+              onChange={(e) => setNewTemplate({ ...newTemplate, category: e.target.value })}
+              style={styles.input}
+            />
+            <textarea
+              placeholder="Template Text"
+              value={newTemplate.text}
+              onChange={(e) => setNewTemplate({ ...newTemplate, text: e.target.value })}
+              style={{ ...styles.textarea, minHeight: '100px' }}
+            />
+            <button
+              type="button"
+              onClick={saveTemplate}
+              style={styles.saveTemplateBtn}
+            >
+              Save Template
+            </button>
+          </div>
+        )}
+
+        {templates.length > 0 && (
+          <div style={styles.templateList}>
+            {templates.map((template) => (
+              <button
+                key={template.id}
+                type="button"
+                onClick={() => applyTemplate(template)}
+                style={styles.templateButton}
+                title={`Category: ${template.template_category}`}
+              >
+                {template.template_name}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       <div style={styles.group}>
@@ -276,5 +387,54 @@ const styles = {
     borderRadius: '6px',
     marginBottom: '12px',
     fontSize: '14px',
+  } as React.CSSProperties,
+  templateHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: '8px',
+  } as React.CSSProperties,
+  createTemplateBtn: {
+    padding: '6px 12px',
+    backgroundColor: '#6c757d',
+    color: 'white',
+    border: 'none',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    fontSize: '12px',
+  } as React.CSSProperties,
+  templateForm: {
+    backgroundColor: '#f9f9f9',
+    padding: '12px',
+    borderRadius: '6px',
+    marginBottom: '12px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '8px',
+  } as React.CSSProperties,
+  saveTemplateBtn: {
+    padding: '8px 16px',
+    backgroundColor: '#28a745',
+    color: 'white',
+    border: 'none',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    fontSize: '13px',
+  } as React.CSSProperties,
+  templateList: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '6px',
+    marginTop: '8px',
+  } as React.CSSProperties,
+  templateButton: {
+    padding: '6px 12px',
+    backgroundColor: '#e7f3ff',
+    color: '#0066cc',
+    border: '1px solid #0066cc',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    fontSize: '13px',
+    fontWeight: '500',
   } as React.CSSProperties,
 };
