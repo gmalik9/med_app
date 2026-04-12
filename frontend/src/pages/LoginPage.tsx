@@ -1,6 +1,5 @@
 import React from 'react';
 import { useAuth } from '../hooks/useAuth';
-import { useNavigate } from 'react-router-dom';
 
 export function LoginPage() {
   const [email, setEmail] = React.useState('');
@@ -11,7 +10,6 @@ export function LoginPage() {
   const [firstName, setFirstName] = React.useState('');
   const [lastName, setLastName] = React.useState('');
   const { login, register } = useAuth();
-  const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -24,7 +22,6 @@ export function LoginPage() {
       } else {
         await login(email, password);
       }
-      navigate('/app');
     } catch (err: any) {
       setError(err.response?.data?.error || 'An error occurred');
     } finally {
