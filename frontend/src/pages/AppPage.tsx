@@ -106,6 +106,9 @@ export function AppPage() {
       <header style={styles.header}>
         <div style={styles.headerLeft}>
           <h1 style={styles.headerTitle}>🏥 Medical Notes</h1>
+          <button onClick={() => setStep('search')} style={styles.dashboardBtn}>
+            📋 Medical Notes
+          </button>
           <button onClick={() => setStep('dashboard')} style={styles.dashboardBtn}>
             Dashboard
           </button>

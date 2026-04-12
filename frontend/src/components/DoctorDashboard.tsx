@@ -8,6 +8,12 @@ interface DashboardData {
   analyticsData: any;
 }
 
+interface NewTemplate {
+  name: string;
+  category: string;
+  text: string;
+}
+
 export default function DoctorDashboard() {
   const [data, setData] = useState<DashboardData>({
     upcomingAppointments: [],
@@ -17,16 +23,12 @@ export default function DoctorDashboard() {
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [showCreateTemplate, setShowCreateTemplate] = useState(false);
+  const [newTemplate, setNewTemplate] = useState<NewTemplate>({ name: '', category: '', text: '' });
+  const [savingTemplate, setSavingTemplate] = useState(false);
 
   useEffect(() => {
     loadDashboardData();
-    
-    // Set up automatic refresh every 30 seconds
-    const refreshInterval = setInterval(() => {
-      loadDashboardData();
-    }, 30000);
-    
-    return () => clearInterval(refreshInterval);
   }, []);
 
   const loadDashboardData = async () => {
@@ -50,6 +52,30 @@ export default function DoctorDashboard() {
       setError('Failed to load dashboard data');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const saveTemplate = async () => {
+    if (!newTemplate.name.trim() || !newTemplate.text.trim()) {
+      alert('Template name and text are required');
+      return;
+    }
+
+    try {
+      setSavingTemplate(true);
+      await apiClient.createTemplate({
+        templateName: newTemplate.name,
+        templateCategory: newTemplate.category || 'General',
+        templateText: newTemplate.text,
+        isPublic: false,
+      });
+      setNewTemplate({ name: '', category: '', text: '' });
+      setShowCreateTemplate(false);
+      await loadDashboardData();
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Failed to save template');
+    } finally {
+      setSavingTemplate(false);
     }
   };
 
@@ -162,7 +188,15 @@ export default function DoctorDashboard() {
 
       {/* Templates Section */}
       <div style={styles.card}>
-        <h3 style={styles.cardTitle}>📝 Quick Templates</h3>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h3 style={styles.cardTitle}>📝 Quick Templates</h3>
+          <button
+            onClick={() => setShowCreateTemplate(true)}
+            style={{ ...styles.button, padding: '8px 12px', fontSize: '14px' }}
+          >
+            + Create Template
+          </button>
+        </div>
         {data.templates.length === 0 ? (
           <p style={styles.emptyMessage}>No templates available</p>
         ) : (
@@ -179,6 +213,62 @@ export default function DoctorDashboard() {
           </div>
         )}
       </div>
+
+      {/* Create Template Modal */}
+      {showCreateTemplate && (
+        <div style={styles.modal}>
+          <div style={styles.modalContent}>
+            <h2>Create New Template</h2>
+            <div style={styles.formGroup}>
+              <label>Template Name:</label>
+              <input
+                type="text"
+                value={newTemplate.name}
+                onChange={(e) => setNewTemplate({ ...newTemplate, name: e.target.value })}
+                placeholder="e.g., General Checkup"
+                style={styles.input}
+              />
+            </div>
+            <div style={styles.formGroup}>
+              <label>Category:</label>
+              <input
+                type="text"
+                value={newTemplate.category}
+                onChange={(e) => setNewTemplate({ ...newTemplate, category: e.target.value })}
+                placeholder="e.g., Checkup, Lab Results"
+                style={styles.input}
+              />
+            </div>
+            <div style={styles.formGroup}>
+              <label>Template Text:</label>
+              <textarea
+                value={newTemplate.text}
+                onChange={(e) => setNewTemplate({ ...newTemplate, text: e.target.value })}
+                placeholder="Enter template text..."
+                style={{ ...styles.textarea, minHeight: '150px' }}
+              />
+            </div>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button
+                onClick={saveTemplate}
+                disabled={savingTemplate}
+                style={styles.button}
+              >
+                {savingTemplate ? 'Saving...' : 'Save Template'}
+              </button>
+              <button
+                onClick={() => {
+                  setShowCreateTemplate(false);
+                  setNewTemplate({ name: '', category: '', text: '' });
+                }}
+                style={{ ...styles.button, background: '#6c757d' }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -326,5 +416,47 @@ const styles = {
     fontSize: '12px',
     color: '#666',
     margin: 0,
+  } as React.CSSProperties,
+  modal: {
+    position: 'fixed' as const,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1000,
+  } as React.CSSProperties,
+  modalContent: {
+    backgroundColor: 'white',
+    padding: '24px',
+    borderRadius: '12px',
+    maxWidth: '500px',
+    width: '90%',
+    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+  } as React.CSSProperties,
+  formGroup: {
+    marginBottom: '16px',
+  } as React.CSSProperties,
+  input: {
+    width: '100%',
+    padding: '10px',
+    marginTop: '4px',
+    border: '1px solid #ddd',
+    borderRadius: '6px',
+    fontSize: '14px',
+    boxSizing: 'border-box' as const,
+  } as React.CSSProperties,
+  textarea: {
+    width: '100%',
+    padding: '10px',
+    marginTop: '4px',
+    border: '1px solid #ddd',
+    borderRadius: '6px',
+    fontSize: '14px',
+    boxSizing: 'border-box' as const,
+    fontFamily: 'monospace',
   } as React.CSSProperties,
 };

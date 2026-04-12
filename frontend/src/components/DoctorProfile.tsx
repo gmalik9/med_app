@@ -31,7 +31,7 @@ export default function DoctorProfile({ onClose }: DoctorProfileProps) {
   const loadDoctorProfile = async () => {
     try {
       setLoading(true);
-      const response = await apiClient.get('/api/auth/profile');
+      const response = await apiClient.getDoctorProfile();
       const doctorInfo = response.data.user || response.data;
       setDoctor(doctorInfo);
       setFormData(doctorInfo);
@@ -65,7 +65,7 @@ export default function DoctorProfile({ onClose }: DoctorProfileProps) {
         bio: formData.bio,
       };
 
-      const response = await apiClient.put('/api/auth/profile', updateData);
+      const response = await apiClient.updateDoctorProfile(updateData);
       setDoctor(response.data.user);
       setEditing(false);
       setSuccess('Profile updated successfully!');
