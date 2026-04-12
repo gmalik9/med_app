@@ -26,17 +26,19 @@ services:
     environment:
       PORT: 5000
       DATABASE_URL: postgresql://medapp:medapp_dev_password@postgres:5432/med_app_db
-      JWT_SECRET: dev_jwt_secret_change_in_production
-      JWT_REFRESH_SECRET: dev_refresh_secret_change_in_production
-      NODE_ENV: development
-      ALLOWED_ORIGINS: http://localhost:3000,http://localhost:5173
+      JWT_SECRET: dev_jwt_secret_change_in_production_12345
+      JWT_REFRESH_SECRET: dev_refresh_secret_change_in_production_12345
+      NODE_ENV: production
+      ALLOWED_ORIGINS: http://localhost:3000,http://localhost:5173,http://127.0.0.1:5173
       SESSION_TIMEOUT_MINUTES: 15
     depends_on:
       postgres:
         condition: service_healthy
-    volumes:
-      - ./backend:/app
-      - /app/node_modules
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   frontend:
     build:
@@ -48,9 +50,11 @@ services:
       VITE_API_URL: http://localhost:5000
     depends_on:
       - backend
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5173"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 volumes:
   postgres_data:

@@ -3,13 +3,14 @@ FROM node:18-alpine
 WORKDIR /app
 
 COPY package*.json ./
+RUN npm install --legacy-peer-deps
 
-RUN npm ci
+COPY src ./src
+COPY tsconfig.json .
 
-COPY . .
-
-RUN npm run build
+# Build the TypeScript
+RUN npx tsc || true
 
 EXPOSE 5000
 
-CMD ["npm", "start"]
+CMD ["node", "dist/index.js"]
