@@ -5,7 +5,7 @@ const pool = new Pool({
   connectionString: config.databaseUrl,
 });
 
-pool.on('error', (err) => {
+pool.on('error', (err: Error) => {
   console.error('Unexpected error on idle client', err);
 });
 
