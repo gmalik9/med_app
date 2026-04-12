@@ -10,6 +10,8 @@ COPY . .
 
 # Build frontend - skip type checking for Docker build
 ENV SKIP_TYPE_CHECK=true
+ARG VITE_API_URL=http://backend:5000
+ENV VITE_API_URL=$VITE_API_URL
 RUN npm run build 2>&1 || true
 
 # Production stage
