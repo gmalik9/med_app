@@ -41,6 +41,7 @@ Deploy your Medical Notes App to Render.com in 5 minutes. ✨
    JWT_SECRET=<generate with: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))">
    JWT_REFRESH_SECRET=<generate another>
    ALLOWED_ORIGINS=https://med-app-frontend.onrender.com
+   ALLOWED_ORIGINS=https://med-app-frontend\..*\.onrender\.com
    SESSION_TIMEOUT_MINUTES=30
    SEED_DATABASE=false
    ```
