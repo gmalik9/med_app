@@ -91,6 +91,72 @@ class ApiClient {
   getNoteHistory(patientId: number, limit?: number) {
     return this.client.get(`/api/notes/patient/${patientId}/history`, { params: { limit } });
   }
+
+  // Phase 2: Vital Signs
+  recordVitals(patientId: number, vitals: any) {
+    return this.client.post(`/api/vitals/patient/${patientId}`, vitals);
+  }
+
+  getLatestVitals(patientId: number) {
+    return this.client.get(`/api/vitals/patient/${patientId}/latest`);
+  }
+
+  getVitalsHistory(patientId: number, limit?: number) {
+    return this.client.get(`/api/vitals/patient/${patientId}/history`, { params: { limit } });
+  }
+
+  // Phase 2: Appointments
+  createAppointment(patientId: number, appointmentDate: string, appointmentType: string, reason: string) {
+    return this.client.post('/api/appointments/create', {
+      patientId,
+      appointmentDate,
+      appointmentType,
+      reason,
+    });
+  }
+
+  getUpcomingAppointments() {
+    return this.client.get('/api/appointments/upcoming');
+  }
+
+  getAppointmentHistory(patientId: number) {
+    return this.client.get(`/api/appointments/patient/${patientId}/history`);
+  }
+
+  // Phase 2: Visit History
+  createVisit(patientId: number, visitData: any) {
+    return this.client.post('/api/visits/create', { patientId, ...visitData });
+  }
+
+  getVisitHistory(patientId: number, limit?: number) {
+    return this.client.get(`/api/visits/patient/${patientId}`, { params: { limit } });
+  }
+
+  getTodayVisits() {
+    return this.client.get('/api/visits/doctor/today');
+  }
+
+  // Phase 3: Templates
+  getTemplates() {
+    return this.client.get('/api/templates/list');
+  }
+
+  getTemplatesByCategory(category: string) {
+    return this.client.get(`/api/templates/category/${category}`);
+  }
+
+  createTemplate(templateData: any) {
+    return this.client.post('/api/templates/create', templateData);
+  }
+
+  // Phase 3: Analytics
+  getDashboard() {
+    return this.client.get('/api/analytics/dashboard');
+  }
+
+  getPatientTrends(patientId: number) {
+    return this.client.get(`/api/analytics/patient/${patientId}/trends`);
+  }
 }
 
 export const apiClient = new ApiClient();
