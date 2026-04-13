@@ -60,6 +60,7 @@ class ApiClient {
       headers: {
         'Content-Type': 'application/json',
       },
+      timeout: 90000, // 90 second timeout for Render cold starts
     });
 
     // Load token from localStorage
