@@ -6,8 +6,12 @@ const router = Router();
 
 const normalizeDateInput = (value?: string) => {
   if (!value) {
+    // Get local date (not UTC)
     const today = new Date();
-    return today.toISOString().split('T')[0]; // YYYY-MM-DD format
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`; // YYYY-MM-DD format in LOCAL time
   }
 
   const trimmed = value.trim();
@@ -17,12 +21,19 @@ const normalizeDateInput = (value?: string) => {
 
   const parsed = new Date(trimmed);
   if (Number.isNaN(parsed.getTime())) {
+    // Get local date (not UTC)
     const today = new Date();
-    return today.toISOString().split('T')[0];
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   }
 
-  // Convert any date to YYYY-MM-DD format
-  return parsed.toISOString().split('T')[0];
+  // Convert any date to YYYY-MM-DD format (local time)
+  const year = parsed.getFullYear();
+  const month = String(parsed.getMonth() + 1).padStart(2, '0');
+  const day = String(parsed.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 };
 
 // Get today's note for patient (or any specific date)
@@ -67,17 +78,18 @@ router.post('/patient/:patientId', authenticate, async (req: Request, res: Respo
       ? Array.from(new Set(medicalCodes.map((code) => String(code).trim().toUpperCase()).filter(Boolean)))
       : [];
 
-    // Check if patient exists
-    const patientResult = await query('SELECT id FROM patients WHERE id = $1', [patientId]);
+    // Check if patient exists and get their integer ID
+    const patientResult = await query('SELECT id FROM patients WHERE patient_id = $1', [patientId]);
     if (patientResult.rows.length === 0) {
       return res.status(404).json({ error: 'Patient not found' });
     }
+    const patientDbId = patientResult.rows[0].id;
 
     // Try to update existing note
     const existing = await query(
       `SELECT id FROM clinical_notes 
        WHERE patient_id = $1 AND note_date = $2 AND doctor_id = $3`,
-      [patientId, noteDate, req.user?.userId]
+      [patientDbId, noteDate, req.user?.userId]
     );
 
     let result;
@@ -87,14 +99,14 @@ router.post('/patient/:patientId', authenticate, async (req: Request, res: Respo
          SET note_text = $2, medical_codes = $3::jsonb, updated_at = NOW()
          WHERE patient_id = $1 AND note_date = $4 AND doctor_id = $5
          RETURNING id, patient_id, doctor_id, note_date, note_text, medical_codes, created_at, updated_at`,
-        [patientId, noteText, JSON.stringify(sanitizedCodes), noteDate, req.user?.userId]
+        [patientDbId, noteText, JSON.stringify(sanitizedCodes), noteDate, req.user?.userId]
       );
     } else {
       result = await query(
         `INSERT INTO clinical_notes (patient_id, doctor_id, note_date, note_text, medical_codes)
          VALUES ($1, $2, $3, $4, $5::jsonb)
          RETURNING id, patient_id, doctor_id, note_date, note_text, medical_codes, created_at, updated_at`,
-        [patientId, req.user?.userId, noteDate, noteText, JSON.stringify(sanitizedCodes)]
+        [patientDbId, req.user?.userId, noteDate, noteText, JSON.stringify(sanitizedCodes)]
       );
     }
 
@@ -102,7 +114,7 @@ router.post('/patient/:patientId', authenticate, async (req: Request, res: Respo
     await query(
       `INSERT INTO audit_log (user_id, patient_id, action, ip_address)
        VALUES ($1, $2, 'SAVE_NOTE', $3)`,
-      [req.user?.userId, patientId, req.ip]
+      [req.user?.userId, patientDbId, req.ip]
     );
 
     res.json({ note: result.rows[0] });
