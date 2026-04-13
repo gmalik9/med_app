@@ -68,7 +68,7 @@ export async function initializeDatabase() {
     await query(`
       CREATE TABLE IF NOT EXISTS clinical_notes (
         id SERIAL PRIMARY KEY,
-        patient_id INTEGER NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
+        patient_id VARCHAR(50) NOT NULL,
         doctor_id INTEGER NOT NULL REFERENCES users(id),
         note_date DATE NOT NULL,
         note_text TEXT,
@@ -79,7 +79,8 @@ export async function initializeDatabase() {
         followup_date DATE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(patient_id, doctor_id, note_date)
+        UNIQUE(patient_id, doctor_id, note_date),
+        FOREIGN KEY (patient_id) REFERENCES patients(patient_id) ON DELETE CASCADE
       )
     `);
 
@@ -92,7 +93,7 @@ export async function initializeDatabase() {
     await query(`
       CREATE TABLE IF NOT EXISTS vital_signs (
         id SERIAL PRIMARY KEY,
-        patient_id INTEGER NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
+        patient_id VARCHAR(50) NOT NULL,
         recorded_by INTEGER NOT NULL REFERENCES users(id),
         recorded_date TIMESTAMP NOT NULL,
         temperature DECIMAL(5,2),
@@ -105,7 +106,8 @@ export async function initializeDatabase() {
         height DECIMAL(5,2),
         notes TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (patient_id) REFERENCES patients(patient_id) ON DELETE CASCADE
       )
     `);
 
@@ -113,7 +115,7 @@ export async function initializeDatabase() {
     await query(`
       CREATE TABLE IF NOT EXISTS appointments (
         id SERIAL PRIMARY KEY,
-        patient_id INTEGER NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
+        patient_id VARCHAR(50) NOT NULL,
         doctor_id INTEGER NOT NULL REFERENCES users(id),
         appointment_date TIMESTAMP NOT NULL,
         appointment_type VARCHAR(100),
@@ -122,7 +124,8 @@ export async function initializeDatabase() {
         notes TEXT,
         reminder_sent BOOLEAN DEFAULT false,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (patient_id) REFERENCES patients(patient_id) ON DELETE CASCADE
       )
     `);
 
@@ -130,7 +133,7 @@ export async function initializeDatabase() {
     await query(`
       CREATE TABLE IF NOT EXISTS visit_history (
         id SERIAL PRIMARY KEY,
-        patient_id INTEGER NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
+        patient_id VARCHAR(50) NOT NULL,
         doctor_id INTEGER NOT NULL REFERENCES users(id),
         visit_date TIMESTAMP NOT NULL,
         visit_type VARCHAR(50),
@@ -140,7 +143,8 @@ export async function initializeDatabase() {
         followup_instructions TEXT,
         next_visit_date DATE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (patient_id) REFERENCES patients(patient_id) ON DELETE CASCADE
       )
     `);
 
@@ -163,12 +167,13 @@ export async function initializeDatabase() {
     await query(`
       CREATE TABLE IF NOT EXISTS data_retention (
         id SERIAL PRIMARY KEY,
-        patient_id INTEGER NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
+        patient_id VARCHAR(50) NOT NULL,
         retention_until DATE,
         reason VARCHAR(255),
         auto_delete BOOLEAN DEFAULT true,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (patient_id) REFERENCES patients(patient_id) ON DELETE CASCADE
       )
     `);
 
@@ -188,7 +193,7 @@ export async function initializeDatabase() {
       CREATE TABLE IF NOT EXISTS audit_log (
         id SERIAL PRIMARY KEY,
         user_id INTEGER REFERENCES users(id),
-        patient_id INTEGER REFERENCES patients(id),
+        patient_id VARCHAR(50) REFERENCES patients(patient_id),
         action VARCHAR(100),
         details TEXT,
         ip_address VARCHAR(45),

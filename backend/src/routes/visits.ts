@@ -67,7 +67,7 @@ router.get('/doctor/today', authenticate, async (req: Request, res: Response) =>
   try {
     const result = await query(
       `SELECT vh.*, p.first_name, p.last_name, p.patient_id FROM visit_history vh
-       JOIN patients p ON vh.patient_id = p.id
+       JOIN patients p ON vh.patient_id = p.patient_id
        WHERE vh.doctor_id = $1 AND DATE(vh.visit_date) = DATE(NOW())
        ORDER BY vh.visit_date DESC`,
       [req.user?.userId]

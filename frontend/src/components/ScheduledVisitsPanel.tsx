@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { apiClient } from '../utils/apiClient';
 
 interface ScheduledVisitsPanelProps {
-  patientId: number;
+  patientId: string | number;
 }
 
 interface Visit {

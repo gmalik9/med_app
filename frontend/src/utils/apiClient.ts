@@ -142,7 +142,7 @@ class ApiClient {
     });
   }
 
-  getPatient(id: number) {
+  getPatient(id: string | number) {
     return this.client.get(`/api/patients/${id}`);
   }
 
@@ -150,33 +150,33 @@ class ApiClient {
     return this.client.get('/api/patients/');
   }
 
-  updatePatientStatus(id: number, is_active: boolean) {
+  updatePatientStatus(id: string | number, is_active: boolean) {
     return this.client.patch(`/api/patients/${id}/active`, { is_active });
   }
 
-  updatePatient(id: number, data: any) {
+  updatePatient(id: string | number, data: any) {
     return this.client.put(`/api/patients/${id}`, data);
   }
 
   // Note endpoints
-  getTodayNote(patientId: number, date?: string) {
+  getTodayNote(patientId: string | number, date?: string) {
     return this.client.get(`/api/notes/patient/${patientId}`, { params: { date } });
   }
 
-  saveNote(patientId: number, noteText: string, date?: string, medicalCodes: string[] = []) {
+  saveNote(patientId: string | number, noteText: string, date?: string, medicalCodes: string[] = []) {
     return this.client.post(`/api/notes/patient/${patientId}`, { noteText, date, medicalCodes });
   }
 
-  getNoteHistory(patientId: number, limit?: number) {
+  getNoteHistory(patientId: string | number, limit?: number) {
     return this.client.get(`/api/notes/patient/${patientId}/history`, { params: { limit } });
   }
 
   // Phase 2: Vital Signs
-  recordVitals(patientId: number, vitals: any) {
+  recordVitals(patientId: string | number, vitals: any) {
     return this.client.post(`/api/vitals/patient/${patientId}`, vitals);
   }
 
-  getLatestVitals(patientId: number) {
+  getLatestVitals(patientId: string | number) {
     return this.client.get(`/api/vitals/patient/${patientId}/latest`);
   }
 

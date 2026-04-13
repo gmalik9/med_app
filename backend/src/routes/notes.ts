@@ -47,8 +47,8 @@ router.get('/patient/:patientId', authenticate, async (req: Request, res: Respon
     const result = await query(
       `SELECT cn.id, cn.patient_id, cn.doctor_id, cn.note_date, cn.note_text, cn.medical_codes, cn.created_at, cn.updated_at
        FROM clinical_notes cn
-       JOIN patients p ON cn.patient_id = p.id
-       WHERE p.id = $1 AND cn.note_date = $2 AND cn.doctor_id = $3`,
+       JOIN patients p ON cn.patient_id = p.patient_id
+       WHERE p.patient_id = $1 AND cn.note_date = $2 AND cn.doctor_id = $3`,
       [patientId, noteDate, req.user?.userId]
     );
 
@@ -78,18 +78,17 @@ router.post('/patient/:patientId', authenticate, async (req: Request, res: Respo
       ? Array.from(new Set(medicalCodes.map((code) => String(code).trim().toUpperCase()).filter(Boolean)))
       : [];
 
-    // Check if patient exists and get their integer ID
-    const patientResult = await query('SELECT id FROM patients WHERE patient_id = $1', [patientId]);
+    // Check if patient exists
+    const patientResult = await query('SELECT patient_id FROM patients WHERE patient_id = $1', [patientId]);
     if (patientResult.rows.length === 0) {
       return res.status(404).json({ error: 'Patient not found' });
     }
-    const patientDbId = patientResult.rows[0].id;
 
     // Try to update existing note
     const existing = await query(
       `SELECT id FROM clinical_notes 
        WHERE patient_id = $1 AND note_date = $2 AND doctor_id = $3`,
-      [patientDbId, noteDate, req.user?.userId]
+      [patientId, noteDate, req.user?.userId]
     );
 
     let result;
@@ -99,14 +98,14 @@ router.post('/patient/:patientId', authenticate, async (req: Request, res: Respo
          SET note_text = $2, medical_codes = $3::jsonb, updated_at = NOW()
          WHERE patient_id = $1 AND note_date = $4 AND doctor_id = $5
          RETURNING id, patient_id, doctor_id, note_date, note_text, medical_codes, created_at, updated_at`,
-        [patientDbId, noteText, JSON.stringify(sanitizedCodes), noteDate, req.user?.userId]
+        [patientId, noteText, JSON.stringify(sanitizedCodes), noteDate, req.user?.userId]
       );
     } else {
       result = await query(
         `INSERT INTO clinical_notes (patient_id, doctor_id, note_date, note_text, medical_codes)
          VALUES ($1, $2, $3, $4, $5::jsonb)
          RETURNING id, patient_id, doctor_id, note_date, note_text, medical_codes, created_at, updated_at`,
-        [patientDbId, req.user?.userId, noteDate, noteText, JSON.stringify(sanitizedCodes)]
+        [patientId, req.user?.userId, noteDate, noteText, JSON.stringify(sanitizedCodes)]
       );
     }
 
@@ -114,7 +113,7 @@ router.post('/patient/:patientId', authenticate, async (req: Request, res: Respo
     await query(
       `INSERT INTO audit_log (user_id, patient_id, action, ip_address)
        VALUES ($1, $2, 'SAVE_NOTE', $3)`,
-      [req.user?.userId, patientDbId, req.ip]
+      [req.user?.userId, patientId, req.ip]
     );
 
     res.json({ note: result.rows[0] });

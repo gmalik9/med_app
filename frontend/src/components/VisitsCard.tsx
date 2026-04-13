@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { apiClient } from '../utils/apiClient';
 
-interface Props { patientId: number; }
+interface Props { patientId: string | number; }
 
 export default function VisitsCard({ patientId }: Props) {
   const [form, setForm] = useState({ visitType: '', chiefComplaint: '', diagnosis: '', treatmentProvided: '', followupInstructions: '', nextVisitDate: '' });

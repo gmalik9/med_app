@@ -46,7 +46,7 @@ router.get('/upcoming', authenticate, async (req: Request, res: Response) => {
     const result = await query(
       `SELECT a.*, p.first_name, p.last_name, p.patient_id 
        FROM appointments a
-       JOIN patients p ON a.patient_id = p.id
+       JOIN patients p ON a.patient_id = p.patient_id
        WHERE a.doctor_id = $1 AND a.appointment_date >= NOW() AND a.status = 'scheduled'
        ORDER BY a.appointment_date ASC
        LIMIT 20`,

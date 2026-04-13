@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { apiClient } from '../utils/apiClient';
 
 interface Props { 
-  patientId: number;
+  patientId: string | number;
 }
 
 export default function TemplatesAnalyticsPanel({ patientId }: Props) {
