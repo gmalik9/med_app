@@ -153,7 +153,7 @@ export function AppPage() {
             <form onSubmit={handleSearch} style={styles.form}>
               <input
                 type="text"
-                placeholder="Enter Patient ID"
+                placeholder="Enter Patient ID (e.g., P001) - will create if not found"
                 value={patientId}
                 onChange={(e) => setPatientId(e.target.value)}
                 required
