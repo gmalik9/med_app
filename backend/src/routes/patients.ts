@@ -14,7 +14,7 @@ router.get('/', authenticate, async (req: Request, res: Response) => {
                 FROM (
                   SELECT jsonb_array_elements_text(cn.medical_codes) AS code
                   FROM clinical_notes cn
-                  WHERE cn.patient_id = p.id
+                  WHERE cn.patient_id = p.patient_id
                 ) codes
               ), '[]'::jsonb) AS cumulative_medical_codes
        FROM patients
@@ -84,7 +84,7 @@ router.get('/search', authenticate, async (req: Request, res: Response) => {
                 FROM (
                   SELECT jsonb_array_elements_text(cn.medical_codes) AS code
                   FROM clinical_notes cn
-                  WHERE cn.patient_id = p.id
+                  WHERE cn.patient_id = p.patient_id
                 ) codes
               ), '[]'::jsonb) AS cumulative_medical_codes
        FROM patients p WHERE patient_id = $1`,
@@ -182,7 +182,7 @@ router.put('/:id', authenticate, async (req: Request, res: Response) => {
                 FROM (
                   SELECT jsonb_array_elements_text(cn.medical_codes) AS code
                   FROM clinical_notes cn
-                  WHERE cn.patient_id = p.id
+                  WHERE cn.patient_id = p.patient_id
                 ) codes
               ), '[]'::jsonb) AS cumulative_medical_codes
        FROM patients p WHERE p.id = $1`,
@@ -199,21 +199,41 @@ router.put('/:id', authenticate, async (req: Request, res: Response) => {
 // Get patient by ID
 router.get('/:id', authenticate, async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const patientId = String(req.params.id);
 
-    const result = await query(
-      `SELECT p.id, p.patient_id, p.first_name, p.last_name, p.gender, p.dob, p.phone, p.email, p.allergies, p.medical_conditions, p.medications, p.is_active, p.created_at, p.updated_at,
-              COALESCE((
-                SELECT jsonb_agg(code)
-                FROM (
-                  SELECT jsonb_array_elements_text(cn.medical_codes) AS code
-                  FROM clinical_notes cn
-                  WHERE cn.patient_id = p.id
-                ) codes
-              ), '[]'::jsonb) AS cumulative_medical_codes
-       FROM patients p WHERE id = $1`,
-      [id]
-    );
+    // Check if id is numeric (integer) or alphanumeric (patient_id string like "P001")
+    const isNumeric = /^\d+$/.test(patientId);
+    
+    let result;
+    if (isNumeric) {
+      result = await query(
+        `SELECT p.id, p.patient_id, p.first_name, p.last_name, p.gender, p.dob, p.phone, p.email, p.allergies, p.medical_conditions, p.medications, p.is_active, p.created_at, p.updated_at,
+                COALESCE((
+                  SELECT jsonb_agg(code)
+                  FROM (
+                    SELECT jsonb_array_elements_text(cn.medical_codes) AS code
+                    FROM clinical_notes cn
+                    WHERE cn.patient_id = p.patient_id
+                  ) codes
+                ), '[]'::jsonb) AS cumulative_medical_codes
+         FROM patients p WHERE p.id = $1`,
+        [parseInt(patientId)]
+      );
+    } else {
+      result = await query(
+        `SELECT p.id, p.patient_id, p.first_name, p.last_name, p.gender, p.dob, p.phone, p.email, p.allergies, p.medical_conditions, p.medications, p.is_active, p.created_at, p.updated_at,
+                COALESCE((
+                  SELECT jsonb_agg(code)
+                  FROM (
+                    SELECT jsonb_array_elements_text(cn.medical_codes) AS code
+                    FROM clinical_notes cn
+                    WHERE cn.patient_id = p.patient_id
+                  ) codes
+                ), '[]'::jsonb) AS cumulative_medical_codes
+         FROM patients p WHERE p.patient_id = $1`,
+        [patientId]
+      );
+    }
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Patient not found' });

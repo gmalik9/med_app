@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { apiClient } from '../utils/apiClient';
 
 interface NoteEditorProps {
-  patientId: number;
+  patientId: string | number;
 }
 
 interface Template {

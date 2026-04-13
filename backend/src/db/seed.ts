@@ -28,14 +28,14 @@ export async function seedDatabase() {
       { patient_id: 'P003', firstName: 'Robert', lastName: 'Johnson', dob: '1975-12-10' },
     ];
 
-    const patientIds: number[] = [];
+    const patientIds: string[] = [];
 
     for (const p of patients) {
       const pResult = await query(
         `INSERT INTO patients (patient_id, first_name, last_name, dob, phone, email, allergies, medical_conditions, medications, created_by, is_active)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
          ON CONFLICT (patient_id) DO UPDATE SET is_active = true
-         RETURNING id`,
+         RETURNING patient_id`,
         [
           p.patient_id,
           p.firstName,
@@ -50,7 +50,7 @@ export async function seedDatabase() {
           true,
         ]
       );
-      patientIds.push(pResult.rows[0].id);
+      patientIds.push(pResult.rows[0].patient_id);
       console.log('✓ Patient created:', p.patient_id);
     }
 

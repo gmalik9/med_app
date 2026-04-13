@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { apiClient } from '../utils/apiClient';
 
 interface PatientHistoryProps {
-  patientId: number;
+  patientId: string | number;
 }
 
 export default function PatientHistory({ patientId }: PatientHistoryProps) {

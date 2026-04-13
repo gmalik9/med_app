@@ -75,7 +75,7 @@ export function AppPage() {
     setSearchError('');
   };
 
-  const handleActivateDeactivate = async (patientId: number, is_active: boolean) => {
+  const handleActivateDeactivate = async (patientId: string | number, is_active: boolean) => {
     try {
       await apiClient.updatePatientStatus(patientId, is_active);
       
@@ -200,26 +200,26 @@ export function AppPage() {
               </div>
 
               <div style={styles.column}>
-                <NoteEditor patientId={patient.id} />
+                <NoteEditor patientId={patient.patient_id} />
               </div>
             </div>
 
             <div style={styles.twoColumn}>
               <div style={styles.column}>
-                <VitalsCard patientId={patient.id} />
+                <VitalsCard patientId={patient.patient_id} />
               </div>
               <div style={styles.column}>
-                <AppointmentsCard patientId={patient.id} />
+                <AppointmentsCard patientId={patient.patient_id} />
               </div>
             </div>
 
-            <VisitsCard patientId={patient.id} />
+            <VisitsCard patientId={patient.patient_id} />
 
-            <ScheduledVisitsPanel patientId={patient.id} />
+            <ScheduledVisitsPanel patientId={patient.patient_id} />
 
-            <TemplatesAnalyticsPanel patientId={patient.id} />
+            <TemplatesAnalyticsPanel patientId={patient.patient_id} />
 
-            <PatientHistory patientId={patient.id} />
+            <PatientHistory patientId={patient.patient_id} />
           </div>
         )}
       </main>
