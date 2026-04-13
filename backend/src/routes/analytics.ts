@@ -23,10 +23,17 @@ router.get('/dashboard', authenticate, async (req: Request, res: Response) => {
       [doctorId]
     );
 
-    // Appointments today
+    // Appointments today and future
     const appointmentsResult = await query(
       `SELECT COUNT(*) as count FROM appointments 
-       WHERE doctor_id = $1 AND DATE(appointment_date) = DATE(NOW()) AND status = 'scheduled'`,
+       WHERE doctor_id = $1 AND DATE(appointment_date) >= DATE(NOW()) AND status = 'scheduled'`,
+      [doctorId]
+    );
+
+    // Visits today and future
+    const visitsResult = await query(
+      `SELECT COUNT(*) as count FROM visit_history 
+       WHERE doctor_id = $1 AND DATE(visit_date) >= DATE(NOW())`,
       [doctorId]
     );
 
@@ -40,12 +47,11 @@ router.get('/dashboard', authenticate, async (req: Request, res: Response) => {
     );
 
     res.json({
-      stats: {
-        totalPatients: parseInt(patientsResult.rows[0]?.count || 0),
-        notesThisMonth: parseInt(notesThisMonthResult.rows[0]?.count || 0),
-        appointmentsToday: parseInt(appointmentsResult.rows[0]?.count || 0),
-        recentActivity: recentActivityResult.rows
-      }
+      totalPatients: parseInt(patientsResult.rows[0]?.count || 0),
+      totalNotes: parseInt(notesThisMonthResult.rows[0]?.count || 0),
+      totalVisits: parseInt(visitsResult.rows[0]?.count || 0),
+      totalAppointments: parseInt(appointmentsResult.rows[0]?.count || 0),
+      recentActivity: recentActivityResult.rows
     });
   } catch (err) {
     console.error('Get analytics error:', err);
