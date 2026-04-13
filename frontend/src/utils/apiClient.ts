@@ -3,6 +3,7 @@ import axios, { AxiosInstance } from 'axios';
 // Smart API URL detection
 // In Docker/Container: use the service name (http://backend:5000)
 // In Browser on Host: use localhost:5001 (the exposed port)
+// In Render/Remote: use backend service URL from environment or construct from hostname
 // Build-time env: use VITE_API_URL if provided
 function getApiUrl(): string {
   // Priority 1: Use build-time environment variable if set
@@ -31,7 +32,16 @@ function getApiUrl(): string {
     return apiUrl;
   }
   
-  // Priority 4: Remote access - assume same domain, use /api proxy
+  // Priority 4: For Render/remote deployment - construct backend URL
+  // Replace 'frontend' with 'backend' in the hostname
+  if (hostname.includes('onrender.com') || hostname.includes('render.com')) {
+    const backendHostname = hostname.replace('frontend', 'backend');
+    const apiUrl = `${protocol}//` + backendHostname;
+    console.log('[API Client] Using Render backend URL:', apiUrl);
+    return apiUrl;
+  }
+  
+  // Priority 5: Generic remote access - assume same domain, use /api proxy
   console.log('[API Client] Using same-origin API for remote access');
   return '/api';
 }
