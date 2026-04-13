@@ -18,9 +18,34 @@ const app = express();
 
 // Middleware
 app.use(express.json());
+// Smart CORS origin handler that supports wildcard patterns
+const corsOriginHandler = (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+  // Allow requests with no origin (like mobile apps, curl, etc)
+  if (!origin) return callback(null, true);
+  
+  // Check each allowed origin pattern
+  for (const allowedPattern of config.allowedOrigins) {
+    // Handle wildcard patterns
+    if (allowedPattern.includes('*')) {
+      const regexPattern = '^' + allowedPattern.replace(/\./g, '\\.').replace(/\*/g, '.*') + '$';
+      const regex = new RegExp(regexPattern);
+      if (regex.test(origin)) {
+        return callback(null, true);
+      }
+    } 
+    // Exact match
+    else if (origin === allowedPattern) {
+      return callback(null, true);
+    }
+  }
+  
+  // Origin not allowed
+  callback(new Error('Not allowed by CORS'), false);
+};
+
 app.use(
   cors({
-    origin: config.allowedOrigins,
+    origin: corsOriginHandler,
     credentials: true,
   })
 );
@@ -72,9 +97,10 @@ async function startServer() {
       await seedDatabase();
     }
     
-    app.listen(config.port, () => {
+    app.listen(config.port, '0.0.0.0', () => {
       console.log(`🏥 Medical notes app running on port ${config.port}`);
       console.log(`Environment: ${config.nodeEnv}`);
+      console.log(`Listening on all interfaces (0.0.0.0) - Render compatible`);
       console.log(`Database: Connected`);
     });
   } catch (err) {
