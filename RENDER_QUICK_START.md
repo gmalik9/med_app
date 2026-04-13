@@ -40,11 +40,12 @@ Deploy your Medical Notes App to Render.com in 5 minutes. ✨
    DATABASE_URL=<paste your Internal Database URL here>
    JWT_SECRET=<generate with: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))">
    JWT_REFRESH_SECRET=<generate another>
-   ALLOWED_ORIGINS=https://med-app-frontend.onrender.com
-   ALLOWED_ORIGINS=https://med-app-frontend\..*\.onrender\.com
+   ALLOWED_ORIGINS=https://*.onrender.com
    SESSION_TIMEOUT_MINUTES=30
    SEED_DATABASE=false
    ```
+   
+   **Note**: Using `https://*.onrender.com` allows frontend auto-detection to work. The frontend automatically detects the backend URL by replacing "frontend" with "backend" in the hostname.
 
 5. Click **Create Web Service**
 6. ⏳ Wait for deployment (takes 3-5 minutes)
@@ -62,8 +63,19 @@ Deploy your Medical Notes App to Render.com in 5 minutes. ✨
 
 4. Click **Advanced** → **Add Environment Variable**:
    ```
-   VITE_API_URL=<paste your backend URL from Step 2>
+   VITE_API_URL=
    ```
+   
+   **Leave this BLANK!** The frontend auto-detects the backend URL by:
+   - Taking the frontend hostname: `med-app-frontend-xxx.onrender.com`
+   - Replacing "frontend" with "backend": `med-app-backend-xxx.onrender.com`
+   - This works automatically without any manual configuration
+   
+   If auto-detection doesn't work for some reason, you can manually set:
+   ```
+   VITE_API_URL=https://med-app-backend-xxx.onrender.com
+   ```
+   (where `xxx` matches your backend service URL)
 
 5. Click **Create Static Site**
 6. ⏳ Wait for deployment
