@@ -55,7 +55,7 @@ router.patch('/:id/active', authenticate, async (req: Request, res: Response) =>
     await query(
       `INSERT INTO audit_log (user_id, patient_id, action, details, ip_address)
        VALUES ($1, $2, 'UPDATE_PATIENT_STATUS', $3, $4)`,
-      [req.user?.userId, id, `Patient ${is_active ? 'activated' : 'deactivated'}`, req.ip]
+      [req.user?.userId, result.rows[0].patient_id, `Patient ${is_active ? 'activated' : 'deactivated'}`, req.ip]
     );
 
     res.json({
@@ -131,7 +131,7 @@ router.post('/create', authenticate, async (req: Request, res: Response) => {
     await query(
       `INSERT INTO audit_log (user_id, patient_id, action, ip_address)
        VALUES ($1, $2, 'CREATE_PATIENT', $3)`,
-      [req.user?.userId, patient.id, req.ip]
+      [req.user?.userId, patient.patient_id, req.ip]
     );
 
     res.status(201).json({ patient });
@@ -172,7 +172,7 @@ router.put('/:id', authenticate, async (req: Request, res: Response) => {
     await query(
       `INSERT INTO audit_log (user_id, patient_id, action, ip_address)
        VALUES ($1, $2, 'UPDATE_PATIENT', $3)`,
-      [req.user?.userId, id, req.ip]
+      [req.user?.userId, result.rows[0].patient_id, req.ip]
     );
 
     const patientResult = await query(
