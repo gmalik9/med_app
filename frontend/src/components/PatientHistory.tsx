@@ -41,9 +41,11 @@ export default function PatientHistory({ patientId }: PatientHistoryProps) {
 
   const formatLocalDate = (dateString?: string) => {
     if (!dateString) return 'Not available';
-    const plainDateMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateString);
-    if (plainDateMatch) {
-      const [, year, month, day] = plainDateMatch;
+    
+    // Handle ISO string format: extract just the date part (YYYY-MM-DD)
+    const isoMatch = /^(\d{4})-(\d{2})-(\d{2})/.exec(dateString);
+    if (isoMatch) {
+      const [, year, month, day] = isoMatch;
       return new Date(Number(year), Number(month) - 1, Number(day)).toLocaleDateString();
     }
 
