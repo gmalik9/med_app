@@ -11,7 +11,7 @@ router.post('/patient/:patientId', authenticate, async (req: Request, res: Respo
     const { temperature, heartRate, bloodPressureSystolic, bloodPressureDiastolic, respiratoryRate, oxygenSaturation, weight, height, notes } = req.body;
 
     // Verify patient exists
-    const patientResult = await query('SELECT id FROM patients WHERE id = $1', [patientId]);
+    const patientResult = await query('SELECT patient_id FROM patients WHERE patient_id = $1', [patientId]);
     if (patientResult.rows.length === 0) {
       return res.status(404).json({ error: 'Patient not found' });
     }
