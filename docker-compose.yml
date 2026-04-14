@@ -32,7 +32,8 @@ services:
       ALLOWED_ORIGINS: http://localhost:3000,http://localhost:5173,http://127.0.0.1:5173,http://localhost:5001
       SESSION_TIMEOUT_MINUTES: 15
       SEED_DATABASE: ${SEED_DATABASE:-false}
-      GEMINI_API_KEY: AIzaSyBWKuXRgdl8Xm9l5rPEzVx2wuC1o3bX4Ok
+    env_file:
+      - secrets.env
     depends_on:
       postgres:
         condition: service_healthy
