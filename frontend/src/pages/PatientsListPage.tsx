@@ -167,7 +167,10 @@ const styles = {
     minHeight: '100vh',
     backgroundColor: '#f5f5f5',
     fontFamily: 'system-ui, -apple-system, sans-serif',
-    padding: '24px',
+    padding: '16px',
+    boxSizing: 'border-box',
+    maxWidth: '100vw',
+    overflowX: 'hidden',
   } as React.CSSProperties,
   header: {
     backgroundColor: 'white',
@@ -208,15 +211,18 @@ const styles = {
   } as React.CSSProperties,
   patientsGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fill, minmax(400px, 1fr))',
-    gap: '20px',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+    gap: '16px',
   } as React.CSSProperties,
   patientCard: {
     backgroundColor: 'white',
     borderRadius: '12px',
-    padding: '20px',
+    padding: '16px',
     boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
     border: '1px solid #e0e0e0',
+    width: '100%',
+    boxSizing: 'border-box',
+    overflow: 'hidden',
   } as React.CSSProperties,
   patientHeader: {
     display: 'flex',
@@ -249,6 +255,7 @@ const styles = {
   } as React.CSSProperties,
   patientActions: {
     display: 'flex',
+    flexWrap: 'wrap',
     gap: '8px',
     justifyContent: 'flex-end',
   } as React.CSSProperties,
