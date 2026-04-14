@@ -18,6 +18,7 @@ export default function PatientForm({
   isEdit = false,
   onStatusChange,
 }: PatientFormProps) {
+  const [isMobile, setIsMobile] = React.useState(typeof window !== 'undefined' && window.innerWidth <= 768);
   const [firstName, setFirstName] = useState(initialData?.first_name || '');
   const [lastName, setLastName] = useState(initialData?.last_name || '');
   const [gender, setGender] = useState(initialData?.gender || '');
@@ -31,6 +32,14 @@ export default function PatientForm({
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [statusUpdating, setStatusUpdating] = useState(false);
+
+  React.useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const cumulativeMedicalCodes = initialData?.cumulative_medical_codes || [];
 
@@ -122,7 +131,7 @@ export default function PatientForm({
           />
         </div>
 
-        <div style={styles.twoCol}>
+        <div style={{ ...styles.twoCol, gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr' }}>
           <div style={styles.group}>
             <label style={styles.label}>First Name</label>
             <input
@@ -145,7 +154,7 @@ export default function PatientForm({
           </div>
         </div>
 
-        <div style={styles.twoCol}>
+        <div style={{ ...styles.twoCol, gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr' }}>
           <div style={styles.group}>
             <label style={styles.label}>Date of Birth</label>
             <input
@@ -168,7 +177,7 @@ export default function PatientForm({
           </div>
         </div>
 
-        <div style={styles.twoCol}>
+        <div style={{ ...styles.twoCol, gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr' }}>
           <div style={styles.group}>
             <label style={styles.label}>Phone</label>
             <input

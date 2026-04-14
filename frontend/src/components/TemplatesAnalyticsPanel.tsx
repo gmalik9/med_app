@@ -9,6 +9,15 @@ export default function TemplatesAnalyticsPanel({ patientId }: Props) {
   const [vitals, setVitals] = useState<any[]>([]);
   const [trends, setTrends] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [isMobile, setIsMobile] = React.useState(typeof window !== 'undefined' && window.innerWidth <= 768);
+
+  React.useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   useEffect(() => {
     loadPatientData();
@@ -32,7 +41,7 @@ export default function TemplatesAnalyticsPanel({ patientId }: Props) {
   };
 
   return (
-    <div style={styles.wrapper}>
+    <div style={{ ...styles.wrapper, gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr' }}>
       <div style={styles.card}>
         <h3 style={styles.title}>Vitals History</h3>
         {loading ? (

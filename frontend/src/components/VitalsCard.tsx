@@ -6,6 +6,7 @@ interface Props {
 }
 
 export default function VitalsCard({ patientId }: Props) {
+  const [isMobile, setIsMobile] = React.useState(typeof window !== 'undefined' && window.innerWidth <= 768);
   const [form, setForm] = useState({
     temperature: '',
     heartRate: '',
@@ -22,6 +23,14 @@ export default function VitalsCard({ patientId }: Props) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [showHistory, setShowHistory] = useState(false);
+
+  React.useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const loadLatest = async () => {
     try {
@@ -79,7 +88,7 @@ export default function VitalsCard({ patientId }: Props) {
       <h3 style={styles.title}>Vital Signs</h3>
       {latest && <div style={styles.meta}>Latest: {new Date(latest.recorded_date).toLocaleString()}</div>}
       {error && <div style={styles.error}>{error}</div>}
-      <form onSubmit={handleSubmit} style={styles.grid}>
+      <form onSubmit={handleSubmit} style={{ ...styles.grid, gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, minmax(0, 1fr))' }}>
         {[
           ['temperature', 'Temperature'],
           ['heartRate', 'Heart Rate'],
