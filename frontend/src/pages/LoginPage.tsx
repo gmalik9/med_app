@@ -4,6 +4,7 @@ import { useAuth } from '../hooks/useAuth';
 export function LoginPage() {
   const [email, setEmail] = React.useState('');
   const [password, setPassword] = React.useState('');
+  const [showPassword, setShowPassword] = React.useState(false);
   const [error, setError] = React.useState('');
   const [loading, setLoading] = React.useState(false);
   const [isRegistering, setIsRegistering] = React.useState(false);
@@ -70,14 +71,25 @@ export function LoginPage() {
             required
             style={styles.input}
           />
-          <input
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            style={styles.input}
-          />
+          
+          <div style={styles.passwordContainer}>
+            <input
+              type={showPassword ? 'text' : 'password'}
+              placeholder="Password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              style={styles.passwordInput}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              style={styles.eyeButton}
+              title={showPassword ? 'Hide password' : 'Show password'}
+            >
+              {showPassword ? '✕' : '•'}
+            </button>
+          </div>
 
           {error && <div style={styles.error}>{error}</div>}
 
@@ -140,6 +152,28 @@ const styles = {
     borderRadius: '6px',
     fontSize: '14px',
     fontFamily: 'system-ui, -apple-system, sans-serif',
+  } as React.CSSProperties,
+  passwordContainer: {
+    display: 'flex',
+    alignItems: 'center',
+    position: 'relative',
+  } as React.CSSProperties,
+  passwordInput: {
+    padding: '12px',
+    border: '1px solid #ddd',
+    borderRadius: '6px',
+    fontSize: '14px',
+    fontFamily: 'system-ui, -apple-system, sans-serif',
+    flex: 1,
+  } as React.CSSProperties,
+  eyeButton: {
+    position: 'absolute',
+    right: '10px',
+    backgroundColor: 'transparent',
+    border: 'none',
+    cursor: 'pointer',
+    fontSize: '18px',
+    padding: '4px',
   } as React.CSSProperties,
   button: {
     padding: '12px',
