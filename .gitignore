@@ -2,6 +2,7 @@ node_modules/
 dist/
 .env
 .env.local
+secrets.env
 .DS_Store
 *.log
 build/
