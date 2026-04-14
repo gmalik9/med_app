@@ -136,14 +136,14 @@ ${text}`
       }
     );
 
-    const data = await response.json();
+    const data = await response.json() as Record<string, any>;
 
-    if (data.error) {
+    if (data && typeof data === 'object' && 'error' in data) {
       console.error('Gemini API Error:', data.error);
-      return res.status(500).json({ error: data.error.message || "AI formatting failed" });
+      return res.status(500).json({ error: (data.error as any)?.message || "AI formatting failed" });
     }
 
-    const formattedText = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    const formattedText = (data as any)?.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
     res.json({ text: formattedText });
   } catch (err: any) {
