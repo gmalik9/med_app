@@ -241,6 +241,11 @@ class ApiClient {
   getPatientTrends(patientId: number) {
     return this.client.get(`/api/analytics/patient/${patientId}/trends`);
   }
+
+  // AI Formatting
+  formatNote(text: string) {
+    return this.client.post('/api/format-note', { text });
+  }
 }
 
 export const apiClient = new ApiClient();
