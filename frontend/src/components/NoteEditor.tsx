@@ -25,6 +25,7 @@ export default function NoteEditor({ patientId }: NoteEditorProps) {
   const [templates, setTemplates] = useState<Template[]>([]);
   const [showCreateTemplate, setShowCreateTemplate] = useState(false);
   const [newTemplate, setNewTemplate] = useState({ name: '', category: '', text: '' });
+  const [isFormatting, setIsFormatting] = useState(false);
 
   const getCodeColor = (code: string) => {
     const colors = [
@@ -158,16 +159,41 @@ export default function NoteEditor({ patientId }: NoteEditorProps) {
         />
       </div>
 
-      <div style={styles.group}>
-        <label style={styles.label}>Note</label>
-        <textarea
-          value={noteText}
-          onChange={(e) => setNoteText(e.target.value)}
-          placeholder="Enter clinical notes for this patient..."
-          style={styles.textarea}
-          rows={10}
-        />
-      </div>
+       <div style={styles.group}>
+         <label style={styles.label}>Note</label>
+         <textarea
+           value={noteText}
+           onChange={(e) => setNoteText(e.target.value)}
+           placeholder="Enter clinical notes for this patient..."
+           style={styles.textarea}
+           rows={10}
+         />
+         <button 
+           type="button" 
+           onClick={async () => {
+             if (!noteText.trim()) return;
+             setIsFormatting(true);
+             setError('');
+             try {
+               const res = await apiClient.formatNote(noteText);
+               if (res.data.text) {
+                 setNoteText(res.data.text);
+                 setSuccess("Note formatted successfully");
+                 setTimeout(() => setSuccess(''), 3000);
+               }
+             } catch (err: any) {
+               console.error('AI Format Error:', err);
+               setError(err.response?.data?.error || "Failed to format note");
+             } finally {
+               setIsFormatting(false);
+             }
+           }}
+           disabled={isFormatting || !noteText.trim()}
+           style={styles.formatBtn}
+         >
+           {isFormatting ? 'Formatting...' : '🔮 Format with AI'}
+         </button>
+       </div>
 
       <div style={styles.group}>
         <div style={styles.templateHeader}>
@@ -376,6 +402,17 @@ const styles = {
     borderRadius: '6px',
     cursor: 'pointer',
     fontSize: '14px',
+  } as React.CSSProperties,
+  formatBtn: {
+    marginTop: '8px',
+    padding: '8px 16px',
+    backgroundColor: '#6f42c1',
+    color: 'white',
+    border: 'none',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    fontSize: '13px',
+    alignSelf: 'flex-start',
   } as React.CSSProperties,
   error: {
     backgroundColor: '#fee',

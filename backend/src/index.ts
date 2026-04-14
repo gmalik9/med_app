@@ -80,6 +80,78 @@ app.use('/api/visits', visitsRoutes);
 app.use('/api/templates', templatesRoutes);
 app.use('/api/analytics', analyticsRoutes);
 
+// AI Note Formatting with Gemini
+app.post('/api/format-note', authenticate, async (req, res) => {
+  try {
+    const { text } = req.body;
+
+    if (!text || !text.trim()) {
+      return res.status(400).json({ error: "Note text is required" });
+    }
+
+    if (!process.env.GEMINI_API_KEY) {
+      return res.status(500).json({ error: "AI formatting not configured" });
+    }
+
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                {
+                  text: `You are a medical scribe. The doctor has written the following clinical notes, which may include shorthand or incomplete phrasing.
+
+Your task is to rewrite these notes into a clear, well-structured, and professional clinical document.
+
+Requirements:
+
+Preserve all original medical facts exactly as written — do not add, remove, or infer any information.
+Do not invent or assume missing details.
+Improve readability, grammar, and organization.
+Use standard clinical terminology and formatting.
+Expand shorthand where appropriate, but only when the meaning is clear.
+
+Output instructions:
+
+Return only the fully formatted clinical note.
+Do not include explanations, comments, or extra text.
+
+Clinical Notes:
+${text}`
+                }
+              ]
+            }
+          ],
+          generationConfig: {
+            temperature: 0.1,
+            maxOutputTokens: 2048
+          }
+        })
+      }
+    );
+
+    const data = await response.json();
+
+    if (data.error) {
+      console.error('Gemini API Error:', data.error);
+      return res.status(500).json({ error: data.error.message || "AI formatting failed" });
+    }
+
+    const formattedText = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+
+    res.json({ text: formattedText });
+  } catch (err: any) {
+    console.error('Format note error:', err);
+    res.status(500).json({ error: "Failed to format note" });
+  }
+});
+
 // Error handler
 app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error('Unhandled error:', err);
