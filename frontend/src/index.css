@@ -25,9 +25,27 @@ body {
   flex-direction: column;
   min-width: 320px;
   min-height: 100vh;
+  overflow-x: hidden;
 }
 
 #root {
   width: 100%;
   flex: 1;
+}
+
+/* Mobile responsive styles */
+@media (max-width: 768px) {
+  body {
+    overflow-x: hidden;
+  }
+  
+  input, textarea, select, button {
+    font-size: 16px; /* Prevents mobile zoom on input focus */
+  }
+}
+
+@media (max-width: 480px) {
+  body {
+    font-size: 14px;
+  }
 }

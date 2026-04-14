@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { apiClient } from '../utils/apiClient';
+import Header from '../components/Header';
 import PatientForm from '../components/PatientForm';
 import NoteEditor from '../components/NoteEditor';
 import PatientHistory from '../components/PatientHistory';
@@ -38,6 +39,15 @@ export function AppPage() {
   const [step, setStep] = useState<'search' | 'create' | 'edit' | 'patients' | 'dashboard' | 'profile'>('search');
   const [loading, setLoading] = useState(false);
   const { logout, user } = useAuth();
+  const [isMobile, setIsMobile] = React.useState(typeof window !== 'undefined' && window.innerWidth <= 768);
+
+  React.useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -103,31 +113,13 @@ export function AppPage() {
 
   return (
     <div style={styles.container}>
-      <header style={styles.header}>
-        <div style={styles.headerLeft}>
-          <h1 style={styles.headerTitle}>🏥 Medical Notes</h1>
-          <button onClick={() => setStep('search')} style={styles.dashboardBtn}>
-            📋 Medical Notes
-          </button>
-          <button onClick={() => setStep('dashboard')} style={styles.dashboardBtn}>
-            Dashboard
-          </button>
-          <button onClick={() => setStep('patients')} style={styles.patientsListBtn}>
-            View All Patients
-          </button>
-        </div>
-        <div style={styles.userInfo}>
-          <span>{user?.email}</span>
-          <button onClick={() => setStep('profile')} style={styles.profileBtn}>
-            👤 Profile
-          </button>
-          <button onClick={logout} style={styles.logoutBtn}>
-            Logout
-          </button>
-        </div>
-      </header>
+      <Header
+        onNavigate={(step: 'search' | 'dashboard' | 'patients' | 'profile') => setStep(step)}
+        userEmail={user?.email}
+        onLogout={logout}
+      />
 
-      <main style={styles.main}>
+      <main style={{ ...styles.main, padding: isMobile ? '16px' : '24px' }}>
         {step === 'profile' && (
           <DoctorProfile onClose={() => setStep('search')} />
         )}
@@ -150,7 +142,7 @@ export function AppPage() {
         {step === 'search' && (
           <div style={styles.card}>
             <h2 style={styles.cardTitle}>Search Patient</h2>
-            <form onSubmit={handleSearch} style={styles.form}>
+            <form onSubmit={handleSearch} style={{ ...styles.form, flexDirection: isMobile ? 'column' : 'row' }}>
               <input
                 type="text"
                 placeholder="Enter Patient ID (e.g., P001) - will create if not found"
@@ -187,7 +179,7 @@ export function AppPage() {
               ← Back to Search
             </button>
 
-            <div style={styles.twoColumn}>
+            <div style={{ ...styles.twoColumn, gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr' }}>
               <div style={styles.column}>
                 <PatientForm
                   patientId={patientId}
@@ -204,7 +196,7 @@ export function AppPage() {
               </div>
             </div>
 
-            <div style={styles.twoColumn}>
+            <div style={{ ...styles.twoColumn, gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr' }}>
               <div style={styles.column}>
                 <VitalsCard patientId={patient.patient_id} />
               </div>
@@ -315,12 +307,14 @@ const styles = {
   form: {
     display: 'flex',
     gap: '12px',
+    flexWrap: 'wrap',
   } as React.CSSProperties,
   searchActions: {
     marginTop: '16px',
   } as React.CSSProperties,
   input: {
     flex: 1,
+    minWidth: '200px',
     padding: '12px',
     border: '1px solid #ddd',
     borderRadius: '6px',
@@ -335,6 +329,7 @@ const styles = {
     cursor: 'pointer',
     fontSize: '16px',
     fontWeight: '500',
+    whiteSpace: 'nowrap',
   } as React.CSSProperties,
   viewAllBtn: {
     marginTop: '16px',
