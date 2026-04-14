@@ -311,9 +311,13 @@ export default function PatientForm({
 const styles = {
   card: {
     backgroundColor: 'white',
-    padding: '24px',
+    padding: '16px',
     borderRadius: '12px',
     boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+    width: '100%',
+    boxSizing: 'border-box',
+    maxWidth: '100%',
+    overflow: 'hidden',
   } as React.CSSProperties,
   title: {
     marginTop: 0,
@@ -424,6 +428,7 @@ const styles = {
   } as React.CSSProperties,
   buttonGroup: {
     display: 'flex',
+    flexWrap: 'wrap',
     gap: '12px',
     justifyContent: 'flex-end',
   } as React.CSSProperties,

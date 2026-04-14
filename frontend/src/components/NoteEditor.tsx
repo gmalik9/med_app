@@ -286,9 +286,13 @@ export default function NoteEditor({ patientId }: NoteEditorProps) {
 const styles = {
   card: {
     backgroundColor: 'white',
-    padding: '24px',
+    padding: '16px',
     borderRadius: '12px',
     boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+    width: '100%',
+    boxSizing: 'border-box',
+    maxWidth: '100%',
+    overflow: 'hidden',
   } as React.CSSProperties,
   title: {
     marginTop: 0,
@@ -323,6 +327,7 @@ const styles = {
   } as React.CSSProperties,
   codeInputRow: {
     display: 'flex',
+    flexWrap: 'wrap',
     gap: '8px',
   } as React.CSSProperties,
   addCodeBtn: {
@@ -390,6 +395,8 @@ const styles = {
   } as React.CSSProperties,
   templateHeader: {
     display: 'flex',
+    flexWrap: 'wrap',
+    gap: '8px',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: '8px',

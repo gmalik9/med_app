@@ -87,7 +87,7 @@ export function LoginPage() {
               style={styles.eyeButton}
               title={showPassword ? 'Hide password' : 'Show password'}
             >
-              {showPassword ? '✕' : '•'}
+              {showPassword ? '👁️‍🗨️' : '👁️'}
             </button>
           </div>
 
