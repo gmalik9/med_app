@@ -40,6 +40,13 @@ export function AppPage() {
   const [loading, setLoading] = useState(false);
   const { logout, user } = useAuth();
   const [isMobile, setIsMobile] = React.useState(typeof window !== 'undefined' && window.innerWidth <= 768);
+  
+  // Camera states
+  const [showCamera, setShowCamera] = useState(false);
+  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
+  const [capturedImage, setCapturedImage] = useState<string | null>(null);
+  const videoRef = React.useRef<HTMLVideoElement>(null);
+  const canvasRef = React.useRef<HTMLCanvasElement>(null);
 
   React.useEffect(() => {
     const handleResize = () => {
@@ -111,6 +118,62 @@ export function AppPage() {
     setStep('search');
   };
 
+  // Camera functionality
+  const startCamera = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { 
+          facingMode: 'environment',
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        }
+      });
+      setCameraStream(stream);
+      setShowCamera(true);
+      
+      // Wait for next tick to ensure element is rendered
+      setTimeout(() => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.onloadedmetadata = () => {
+            videoRef.current?.play();
+          };
+        }
+      }, 100);
+    } catch (err) {
+      setSearchError('Could not access camera. Please allow camera permissions.');
+      console.error('Camera error:', err);
+    }
+  };
+
+  const stopCamera = () => {
+    if (cameraStream) {
+      cameraStream.getTracks().forEach(track => track.stop());
+      setCameraStream(null);
+    }
+    setShowCamera(false);
+  };
+
+  const capturePhoto = () => {
+    if (videoRef.current && canvasRef.current) {
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(video, 0, 0);
+        // Convert canvas to image data URL
+        const imageData = canvas.toDataURL('image/jpeg');
+        setCapturedImage(imageData);
+        // Here you would process the image / send to API for OCR / sticker detection
+        stopCamera();
+        setSearchError('Photo captured! Processing patient ID sticker...');
+        // You can add OCR / label detection logic here to extract patient ID automatically
+      }
+    }
+  };
+
   return (
     <div style={styles.container}>
       <Header
@@ -152,15 +215,45 @@ export function AppPage() {
                 style={styles.input}
                 autoFocus
               />
+              <button type="button" onClick={startCamera} style={styles.cameraButton}>
+                📷
+              </button>
               <button type="submit" disabled={loading} style={styles.button}>
                 {loading ? 'Searching...' : 'Search'}
               </button>
             </form>
+
+            {/* Camera Modal */}
+            {showCamera && (
+              <div style={styles.cameraModal}>
+                <div style={styles.cameraContainer}>
+                  <video ref={videoRef} autoPlay playsInline style={styles.cameraFeed} />
+                  <canvas ref={canvasRef} style={{ display: 'none' }} />
+                  <div style={styles.cameraControls}>
+                    <button onClick={stopCamera} style={styles.cancelCameraBtn}>
+                      ✕ Cancel
+                    </button>
+                    <button onClick={capturePhoto} style={styles.captureBtn}>
+                      📸 Capture
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
             <div style={styles.searchActions}>
               <button onClick={() => setStep('patients')} style={styles.viewAllBtn}>
                 View All Patients
               </button>
             </div>
+            
+            {/* Captured image preview */}
+            {capturedImage && (
+              <div style={styles.capturedPreviewContainer}>
+                <h4 style={styles.capturedPreviewTitle}>Captured Photo:</h4>
+                <img src={capturedImage} alt="Captured" style={styles.capturedPreview} />
+              </div>
+            )}
+            
             {searchError && <div style={styles.error}>{searchError}</div>}
           </div>
         )}
@@ -373,5 +466,90 @@ const styles = {
   column: {
     display: 'flex',
     flexDirection: 'column',
+  } as React.CSSProperties,
+  cameraButton: {
+    padding: '12px 16px',
+    backgroundColor: '#28a745',
+    color: 'white',
+    border: 'none',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    fontSize: '18px',
+    fontWeight: '500',
+    whiteSpace: 'nowrap',
+  } as React.CSSProperties,
+  cameraModal: {
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.9)',
+    zIndex: 1000,
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: '20px',
+  } as React.CSSProperties,
+  cameraContainer: {
+    width: '100%',
+    maxWidth: '600px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '20px',
+  } as React.CSSProperties,
+  cameraFeed: {
+    width: '100%',
+    borderRadius: '12px',
+    backgroundColor: '#000',
+  } as React.CSSProperties,
+  cameraControls: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    gap: '16px',
+  } as React.CSSProperties,
+  cancelCameraBtn: {
+    flex: 1,
+    padding: '14px',
+    backgroundColor: '#dc3545',
+    color: 'white',
+    border: 'none',
+    borderRadius: '8px',
+    cursor: 'pointer',
+    fontSize: '16px',
+    fontWeight: '500',
+  } as React.CSSProperties,
+  captureBtn: {
+    flex: 1,
+    padding: '14px',
+    backgroundColor: '#28a745',
+    color: 'white',
+    border: 'none',
+    borderRadius: '8px',
+    cursor: 'pointer',
+    fontSize: '16px',
+    fontWeight: '500',
+  } as React.CSSProperties,
+  capturedPreviewContainer: {
+    marginTop: '20px',
+    padding: '16px',
+    backgroundColor: '#f8f9fa',
+    borderRadius: '8px',
+    border: '1px solid #e0e0e0',
+  } as React.CSSProperties,
+  capturedPreviewTitle: {
+    marginTop: 0,
+    marginBottom: '12px',
+    fontSize: '14px',
+    fontWeight: '600',
+    color: '#333',
+  } as React.CSSProperties,
+  capturedPreview: {
+    width: '100%',
+    maxHeight: '300px',
+    objectFit: 'contain',
+    borderRadius: '6px',
+    backgroundColor: '#000',
   } as React.CSSProperties,
 };
