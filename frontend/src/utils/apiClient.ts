@@ -159,6 +159,17 @@ class ApiClient {
     return this.client.put(`/api/patients/${id}`, data);
   }
 
+  scanPatientSticker(image: Blob) {
+    const formData = new FormData();
+    formData.append('image', image, 'sticker-scan.jpg');
+
+    return this.client.post('/api/patients/scan-sticker', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+  }
+
   // Note endpoints
   getTodayNote(patientId: string | number, date?: string) {
     return this.client.get(`/api/notes/patient/${patientId}`, { params: { date } });

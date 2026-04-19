@@ -8,6 +8,8 @@ interface PatientFormProps {
   onCancel: () => void;
   isEdit?: boolean;
   onStatusChange?: (patientId: number, isActive: boolean) => void;
+  allowPatientIdEdit?: boolean;
+  onPatientIdChange?: (patientId: string) => void;
 }
 
 export default function PatientForm({
@@ -17,6 +19,8 @@ export default function PatientForm({
   onCancel,
   isEdit = false,
   onStatusChange,
+  allowPatientIdEdit = false,
+  onPatientIdChange,
 }: PatientFormProps) {
   const [isMobile, setIsMobile] = React.useState(typeof window !== 'undefined' && window.innerWidth <= 768);
   const [firstName, setFirstName] = useState(initialData?.first_name || '');
@@ -32,6 +36,19 @@ export default function PatientForm({
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [statusUpdating, setStatusUpdating] = useState(false);
+
+  React.useEffect(() => {
+    setFirstName(initialData?.first_name || initialData?.firstName || '');
+    setLastName(initialData?.last_name || initialData?.lastName || '');
+    setGender(initialData?.gender || '');
+    setDob(initialData?.dob || '');
+    setPhone(initialData?.phone || '');
+    setEmail(initialData?.email || '');
+    setAllergies(initialData?.allergies || '');
+    setMedications(initialData?.medications || '');
+    setMedicalConditions(initialData?.medical_conditions || initialData?.medicalConditions || '');
+    setIsActive(initialData?.is_active !== false);
+  }, [initialData]);
 
   React.useEffect(() => {
     const handleResize = () => {
@@ -125,9 +142,10 @@ export default function PatientForm({
           <input
             type="text"
             value={patientId}
-            readOnly
-            disabled
-            style={{ ...styles.input, ...styles.readOnly }}
+            readOnly={!allowPatientIdEdit}
+            disabled={!allowPatientIdEdit}
+            onChange={(e) => onPatientIdChange?.(e.target.value)}
+            style={{ ...styles.input, ...(allowPatientIdEdit ? {} : styles.readOnly) }}
           />
         </div>
 

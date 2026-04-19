@@ -1,8 +1,12 @@
 import { Router, Request, Response } from 'express';
+import multer from 'multer';
 import { query } from '../db';
 import { authenticate } from '../middleware/auth';
+import { processStickerImage } from '../services/stickerOcr';
+import { parseStickerText } from '../services/stickerParser';
 
 const router = Router();
+const upload = multer({ limits: { fileSize: 8 * 1024 * 1024 } });
 
 // Get all patients
 router.get('/', authenticate, async (req: Request, res: Response) => {
@@ -100,6 +104,51 @@ router.get('/search', authenticate, async (req: Request, res: Response) => {
   } catch (err) {
     console.error('Patient search error:', err);
     res.status(500).json({ error: 'Search failed' });
+  }
+});
+
+router.post('/scan-sticker', authenticate, upload.single('image'), async (req: Request, res: Response) => {
+  try {
+    if (!req.file?.buffer) {
+      return res.status(400).json({ error: 'Image file is required' });
+    }
+
+    const { text } = await processStickerImage(req.file.buffer);
+    const parsed = parseStickerText(text);
+
+    let patient = null;
+    if (parsed.patientId) {
+      const result = await query(
+        `SELECT p.id, p.patient_id, p.first_name, p.last_name, p.gender, p.dob, p.phone, p.email, p.allergies, p.medical_conditions, p.medications, p.is_active, p.created_at, p.updated_at,
+                COALESCE((
+                  SELECT jsonb_agg(code)
+                  FROM (
+                    SELECT jsonb_array_elements_text(cn.medical_codes) AS code
+                    FROM clinical_notes cn
+                    WHERE cn.patient_id = p.patient_id
+                  ) codes
+                ), '[]'::jsonb) AS cumulative_medical_codes
+         FROM patients p WHERE patient_id = $1`,
+        [parsed.patientId]
+      );
+      patient = result.rows[0] || null;
+    }
+
+    await query(
+      `INSERT INTO audit_log (user_id, patient_id, action, details, ip_address)
+       VALUES ($1, $2, 'SCAN_PATIENT_STICKER', $3, $4)`,
+      [req.user?.userId, parsed.patientId, JSON.stringify(parsed), req.ip]
+    );
+
+    res.json({
+      text,
+      parsed,
+      exists: Boolean(patient),
+      patient,
+    });
+  } catch (err) {
+    console.error('Sticker scan error:', err);
+    res.status(500).json({ error: 'Failed to process sticker image' });
   }
 });
 
