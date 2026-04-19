@@ -31,6 +31,23 @@ interface Patient {
   updated_at: string;
 }
 
+interface ScanParsedData {
+  rawName: string | null;
+  firstName: string | null;
+  lastName: string | null;
+  gender: string | null;
+  dob: string | null;
+  age: string | null;
+  mrn: string | null;
+  account: string | null;
+  dateOfService: string | null;
+  location: string | null;
+  patientId: string | null;
+  confidenceWarnings: string[];
+}
+
+type ScanDecisionState = 'idle' | 'matched' | 'new' | 'failed';
+
 export function AppPage() {
   const [patientId, setPatientId] = useState('');
   const [searchError, setSearchError] = useState('');
@@ -45,6 +62,11 @@ export function AppPage() {
   const [showCamera, setShowCamera] = useState(false);
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
+  const [scanResult, setScanResult] = useState<ScanParsedData | null>(null);
+  const [scanRawText, setScanRawText] = useState('');
+  const [scanLoading, setScanLoading] = useState(false);
+  const [scanDecision, setScanDecision] = useState<ScanDecisionState>('idle');
+  const [showManualCreate, setShowManualCreate] = useState(false);
   const videoRef = React.useRef<HTMLVideoElement>(null);
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
 
@@ -90,6 +112,10 @@ export function AppPage() {
     setPatientExists(false);
     setStep('search');
     setSearchError('');
+    setScanResult(null);
+    setScanRawText('');
+    setScanDecision('idle');
+    setShowManualCreate(false);
   };
 
   const handleActivateDeactivate = async (patientId: string | number, is_active: boolean) => {
@@ -118,9 +144,34 @@ export function AppPage() {
     setStep('search');
   };
 
+  const handleOpenCreateFromScan = () => {
+    setPatient(null);
+    setPatientExists(false);
+    setStep('create');
+    setShowManualCreate(true);
+  };
+
+  const handleOpenEditFromScan = () => {
+    if (!patient) {
+      return;
+    }
+
+    setPatientExists(true);
+    setStep('edit');
+  };
+
   // Camera functionality
   const startCamera = async () => {
     try {
+      setCapturedImage(null);
+      setScanResult(null);
+      setScanRawText('');
+      setScanDecision('idle');
+      setShowManualCreate(false);
+      setPatient(null);
+      setPatientExists(false);
+      setSearchError('');
+
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { 
           facingMode: 'environment',
@@ -154,6 +205,75 @@ export function AppPage() {
     setShowCamera(false);
   };
 
+  const applyScanToSearch = (parsed: ScanParsedData) => {
+    const resolvedPatientId = parsed.patientId || parsed.mrn || parsed.account || '';
+    setPatientId(resolvedPatientId);
+  };
+
+  const processCapturedPhoto = async (canvas: HTMLCanvasElement) => {
+    setScanLoading(true);
+    setSearchError('');
+
+    try {
+      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.92));
+      if (!blob) {
+        throw new Error('Failed to create image from camera capture');
+      }
+
+      const response = await apiClient.scanPatientSticker(blob);
+      const { parsed, text, exists, patient: existingPatient } = response.data;
+
+      setScanResult(parsed);
+      setScanRawText(text || '');
+      applyScanToSearch(parsed);
+
+      const hasMeaningfulParsedData = Boolean(
+        parsed && (
+          parsed.rawName ||
+          parsed.firstName ||
+          parsed.lastName ||
+          parsed.dob ||
+          parsed.mrn ||
+          parsed.account ||
+          parsed.location
+        )
+      );
+
+      const hasRawOcrText = Boolean((text || '').trim());
+      const parseFailed = !hasMeaningfulParsedData && !hasRawOcrText;
+
+      if (exists && existingPatient) {
+        setPatient(existingPatient);
+        setPatientExists(true);
+        setScanDecision('matched');
+        setShowManualCreate(false);
+        setSearchError('Patient sticker scanned successfully. Review the parsed data below and choose Edit Patient.');
+      } else if (parseFailed) {
+        setPatient(null);
+        setPatientExists(false);
+        setScanDecision('failed');
+        setShowManualCreate(false);
+        setSearchError('Failed to process sticker image. You can create the patient manually.');
+      } else {
+        setPatient(null);
+        setPatientExists(false);
+        setScanDecision('new');
+        setShowManualCreate(false);
+        setSearchError('Sticker scanned. Review the parsed data below and create a new patient if it looks correct.');
+      }
+
+      if (navigator.vibrate) {
+        navigator.vibrate(100);
+      }
+    } catch (err: any) {
+      setScanDecision('failed');
+      setShowManualCreate(false);
+      setSearchError(err.response?.data?.error || err.message || 'Failed to scan patient sticker');
+    } finally {
+      setScanLoading(false);
+    }
+  };
+
   const capturePhoto = () => {
     if (videoRef.current && canvasRef.current) {
       const video = videoRef.current;
@@ -163,13 +283,24 @@ export function AppPage() {
       const ctx = canvas.getContext('2d');
       if (ctx) {
         ctx.drawImage(video, 0, 0);
-        // Convert canvas to image data URL
-        const imageData = canvas.toDataURL('image/jpeg');
+        const frame = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const data = frame.data;
+
+        for (let i = 0; i < data.length; i += 4) {
+          const grayscale = Math.round(data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);
+          const thresholded = grayscale > 165 ? 255 : 0;
+          data[i] = thresholded;
+          data[i + 1] = thresholded;
+          data[i + 2] = thresholded;
+        }
+
+        ctx.putImageData(frame, 0, 0);
+
+        const imageData = canvas.toDataURL('image/jpeg', 0.92);
         setCapturedImage(imageData);
-        // Here you would process the image / send to API for OCR / sticker detection
         stopCamera();
-        setSearchError('Photo captured! Processing patient ID sticker...');
-        // You can add OCR / label detection logic here to extract patient ID automatically
+        setSearchError('Photo captured! Processing patient sticker...');
+        void processCapturedPhoto(canvas);
       }
     }
   };
@@ -216,7 +347,7 @@ export function AppPage() {
                 autoFocus
               />
               <button type="button" onClick={startCamera} style={styles.cameraButton}>
-                📷
+                {scanLoading ? 'Scanning...' : '📷 Scan Sticker'}
               </button>
               <button type="submit" disabled={loading} style={styles.button}>
                 {loading ? 'Searching...' : 'Search'}
@@ -251,6 +382,89 @@ export function AppPage() {
               <div style={styles.capturedPreviewContainer}>
                 <h4 style={styles.capturedPreviewTitle}>Captured Photo:</h4>
                 <img src={capturedImage} alt="Captured" style={styles.capturedPreview} />
+
+                {scanResult && (
+                  <div style={styles.inlineParsedSummary}>
+                    <div><strong>Name:</strong> {scanResult.rawName || '—'}</div>
+                    <div><strong>MRN:</strong> {scanResult.mrn || '—'}</div>
+                    <div><strong>DOB:</strong> {scanResult.dob || '—'}</div>
+                    <div><strong>Location:</strong> {scanResult.location || '—'}</div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {(scanResult || scanRawText || scanDecision === 'failed') && (
+              <div style={styles.scanResultsCard}>
+                <div style={styles.scanResultsHeader}>
+                  <h4 style={styles.scanResultsTitle}>Sticker OCR Result</h4>
+                  {scanResult && (
+                    <button
+                      type="button"
+                      onClick={() => applyScanToSearch(scanResult)}
+                      style={styles.useScanButton}
+                    >
+                      Use MRN for Search
+                    </button>
+                  )}
+                </div>
+
+                <div style={styles.scanGrid}>
+                  <div><strong>Name:</strong> {scanResult?.rawName || '—'}</div>
+                  <div><strong>First:</strong> {scanResult?.firstName || '—'}</div>
+                  <div><strong>Last:</strong> {scanResult?.lastName || '—'}</div>
+                  <div><strong>Gender:</strong> {scanResult?.gender || '—'}</div>
+                  <div><strong>DOB:</strong> {scanResult?.dob || '—'}</div>
+                  <div><strong>Age:</strong> {scanResult?.age || '—'}</div>
+                  <div><strong>MRN:</strong> {scanResult?.mrn || '—'}</div>
+                  <div><strong>Account:</strong> {scanResult?.account || '—'}</div>
+                  <div><strong>DOS:</strong> {scanResult?.dateOfService || '—'}</div>
+                  <div><strong>Location:</strong> {scanResult?.location || '—'}</div>
+                </div>
+
+                {scanResult && scanResult.confidenceWarnings.length > 0 && (
+                  <div style={styles.scanWarningBox}>
+                    {scanResult.confidenceWarnings.map((warning) => (
+                      <div key={warning}>• {warning}</div>
+                    ))}
+                  </div>
+                )}
+
+                {scanRawText && (
+                  <details style={styles.scanRawTextWrap}>
+                    <summary>View raw OCR text</summary>
+                    <pre style={styles.scanRawText}>{scanRawText}</pre>
+                  </details>
+                )}
+
+                {!scanRawText && (
+                  <div style={styles.scanWarningBox}>
+                    Raw OCR text is not available for this capture.
+                  </div>
+                )}
+
+                <div style={styles.scanActionRow}>
+                  {scanDecision === 'matched' && patient && (
+                    <button type="button" onClick={handleOpenEditFromScan} style={styles.primaryScanAction}>
+                      Edit Patient
+                    </button>
+                  )}
+
+                  {scanDecision === 'new' && (
+                    <button type="button" onClick={handleOpenCreateFromScan} style={styles.primaryScanAction}>
+                      Create New Patient
+                    </button>
+                  )}
+
+                  {scanDecision === 'failed' && (
+                    <>
+                      <div style={styles.failedScanText}>Failed to process sticker image.</div>
+                      <button type="button" onClick={handleOpenCreateFromScan} style={styles.secondaryScanAction}>
+                        Create Patient Manually
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
             )}
             
@@ -261,6 +475,14 @@ export function AppPage() {
         {step === 'create' && (
           <PatientForm
             patientId={patientId}
+            initialData={scanResult ? {
+              firstName: scanResult.firstName || '',
+              lastName: scanResult.lastName || '',
+              gender: scanResult.gender || '',
+              dob: scanResult.dob || '',
+            } : undefined}
+            allowPatientIdEdit={scanDecision === 'failed' || showManualCreate}
+            onPatientIdChange={setPatientId}
             onCreated={handlePatientCreated}
             onCancel={handleReset}
           />
@@ -551,5 +773,109 @@ const styles = {
     objectFit: 'contain',
     borderRadius: '6px',
     backgroundColor: '#000',
+  } as React.CSSProperties,
+  inlineParsedSummary: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+    gap: '8px',
+    marginTop: '12px',
+    padding: '12px',
+    backgroundColor: '#ffffff',
+    border: '1px solid #e5e7eb',
+    borderRadius: '6px',
+    fontSize: '13px',
+    color: '#374151',
+  } as React.CSSProperties,
+  scanResultsCard: {
+    marginTop: '20px',
+    padding: '16px',
+    backgroundColor: '#f8fffb',
+    borderRadius: '8px',
+    border: '1px solid #cfe8d5',
+  } as React.CSSProperties,
+  scanResultsHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: '12px',
+    flexWrap: 'wrap',
+    marginBottom: '12px',
+  } as React.CSSProperties,
+  scanResultsTitle: {
+    margin: 0,
+    fontSize: '16px',
+    color: '#1f3b2d',
+  } as React.CSSProperties,
+  useScanButton: {
+    padding: '10px 14px',
+    backgroundColor: '#198754',
+    color: '#fff',
+    border: 'none',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    fontSize: '14px',
+    fontWeight: '600',
+  } as React.CSSProperties,
+  scanGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+    gap: '10px',
+    fontSize: '14px',
+    color: '#1f2937',
+  } as React.CSSProperties,
+  scanWarningBox: {
+    marginTop: '12px',
+    padding: '12px',
+    backgroundColor: '#fff3cd',
+    color: '#7a5a00',
+    borderRadius: '6px',
+    border: '1px solid #ffe69c',
+    fontSize: '13px',
+  } as React.CSSProperties,
+  scanRawTextWrap: {
+    marginTop: '12px',
+    fontSize: '13px',
+  } as React.CSSProperties,
+  scanRawText: {
+    whiteSpace: 'pre-wrap',
+    backgroundColor: '#fff',
+    border: '1px solid #e5e7eb',
+    borderRadius: '6px',
+    padding: '12px',
+    marginTop: '8px',
+    fontSize: '12px',
+    color: '#374151',
+  } as React.CSSProperties,
+  scanActionRow: {
+    marginTop: '16px',
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '12px',
+    alignItems: 'center',
+  } as React.CSSProperties,
+  primaryScanAction: {
+    padding: '10px 16px',
+    backgroundColor: '#0066cc',
+    color: '#fff',
+    border: 'none',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    fontSize: '14px',
+    fontWeight: '600',
+  } as React.CSSProperties,
+  secondaryScanAction: {
+    padding: '10px 16px',
+    backgroundColor: '#6c757d',
+    color: '#fff',
+    border: 'none',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    fontSize: '14px',
+    fontWeight: '600',
+  } as React.CSSProperties,
+  failedScanText: {
+    fontSize: '14px',
+    fontWeight: '600',
+    color: '#b02a37',
   } as React.CSSProperties,
 };
