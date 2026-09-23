@@ -1,5 +1,15 @@
 # Implementation status — final coordination ledger
 
+> **Current status — 2026-09-23: HISTORY SCAN PASS, rewritten advertised history only.**
+> See [authorized remediation and evidence](history-remediation-20260923.md), which
+> supersedes the historical gate FAIL below without changing its recorded facts.
+> Revocation is **owner attestation, not provider-verified**. Old-commit API lookup
+> still returned **HTTP 200**; GitHub cleanup and retained-copy risks remain unwaived.
+> Hosted Security succeeded; Verify was in progress at handoff, not a final PASS.
+> **Q1–Q7 production gates remain open**: the selected synthetic-pilot design is
+> approved, **not implemented or accepted**. No production/ePHI authorization.
+> All following results and statuses are preserved historical evidence, not new runs.
+
 **SECURITY GATE FAIL — OWNER ACTION REQUIRED.** The pinned full-history scan still
 reports eight findings; local tests, working-tree scan zero and image scan zero do
 not clear it. See [credential triage](history-secret-findings.md) and the
