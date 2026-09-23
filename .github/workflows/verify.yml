@@ -21,19 +21,8 @@ jobs:
             image: postgres:15-alpine@sha256:a46e076249ce434e41203b8c1dadfaa025b9726331d72390df038385d6dc29cd
           - pg: '17'
             image: postgres:17-alpine@sha256:f02121de6f74d30d8a94cd1d9584125e2178d7e6c377d8130112d4e52d867995
-    services:
-      postgres:
-        image: ${{ matrix.image }}
-        env:
-          POSTGRES_USER: audit
-          POSTGRES_PASSWORD: ${{ secrets.TEST_DATABASE_PASSWORD }}
-          POSTGRES_DB: medapp_audit
-          TZ: ${{ matrix.timezone }}
-          PGTZ: ${{ matrix.timezone }}
-        ports: ['55439:5432']
-        options: --health-cmd="pg_isready -U audit -d medapp_audit" --health-interval=5s --health-timeout=5s --health-retries=10
     env:
-      TEST_DATABASE_PASSWORD: ${{ secrets.TEST_DATABASE_PASSWORD }}
+      CI_DATABASE_IMAGE: ${{ matrix.image }}
       TZ: ${{ matrix.timezone }}
       EXPECTED_PG_MAJOR: ${{ matrix.pg }}
       EXPECTED_PG_TIMEZONE: ${{ matrix.timezone }}
@@ -48,8 +37,8 @@ jobs:
         with:
           node-version: '22'
           cache: npm
-      - name: Configure isolated audit credentials without logging the URL
-        run: node tests/configure-test-database.mjs
+      - name: Start job-owned synthetic PostgreSQL with masked ephemeral credentials
+        run: node tests/ci-database.mjs start
       - run: npm ci
       - name: Record suite classification and enforce the exact synthetic URL
         run: |
@@ -60,6 +49,9 @@ jobs:
       - run: npm exec -- playwright install --with-deps chromium
       - name: Required integration, types, lint, units, builds, browser and dependency checks
         run: npm run verify:release
+      - name: Remove only this job's synthetic PostgreSQL container
+        if: always()
+        run: node tests/ci-database.mjs cleanup
 
   release-required:
     name: Release required

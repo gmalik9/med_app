@@ -84,8 +84,9 @@ test('audit guard rejects target/credential/operator overrides without echoing v
   }
 });
 
-test('CI URL construction percent-encodes the supplied secret, writes only job env, never logs', () => {
+test('CI URL construction percent-encodes the supplied private password and masks before job-env write', () => {
   const password = `${syntheticSecret()}:@/?#%+é`;
+  const masks = [];
   let calls = 0;
   configureTestDatabase({ TEST_DATABASE_PASSWORD: password, GITHUB_ENV: 'job-environment-only' }, (path, content, options) => {
     calls++;
@@ -93,14 +94,15 @@ test('CI URL construction percent-encodes the supplied secret, writes only job e
     assert.equal(options.mode, 0o600);
     assert.ok(content.startsWith('TEST_DATABASE_URL=') && content.endsWith('\n'));
     const value = content.slice('TEST_DATABASE_URL='.length, -1);
+    assert.ok(masks.includes(password) && masks.includes(encodeURIComponent(password)) && masks.includes(value));
     assert.ok(accepted(value) === value);
     assert.ok(decodeURIComponent(new URL(value).password) === password);
     assert.equal(content.split('\n').length, 2);
-  });
+  }, value => masks.push(value));
   assert.equal(calls, 1);
 });
 
-test('CI provisioning refuses missing secret or job environment with redacted errors', () => {
+test('manual CI URL configuration refuses missing private password or job environment with redacted errors', () => {
   for (const env of [{}, { TEST_DATABASE_PASSWORD: syntheticSecret() }, { GITHUB_ENV: 'unused' }]) {
     assert.throws(() => configureTestDatabase(env, () => assert.fail('must not write')), /CI requires/);
   }

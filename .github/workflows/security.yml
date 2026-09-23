@@ -69,19 +69,30 @@ jobs:
       - name: Build synthetic application image, without production secrets
         run: |
           docker build --pull -f "$WORKSPACE/Dockerfile" -t "medapp-scan:$WORKSPACE" .
-          mkdir -p "$RUNNER_TEMP/image-scan"
-          docker save "medapp-scan:$WORKSPACE" -o "$RUNNER_TEMP/image-scan/image.tar"
+          umask 077
+          mkdir -m 700 "$RUNNER_TEMP/image-scan-input" "$RUNNER_TEMP/image-scan"
+          mkdir -m 700 "$RUNNER_TEMP/image-scan-cache" "$RUNNER_TEMP/image-scan-cache/tmp"
+          docker save "medapp-scan:$WORKSPACE" -o "$RUNNER_TEMP/image-scan-input/image.tar"
       - name: Generate image SBOM, including OS/native and language packages
         id: sbom
+        # docker save creates a runner-owned 0600 archive. Root without DAC capabilities
+        # cannot read it; keep capabilities dropped and use the owner's numeric identity.
         run: >-
-          docker run --rm --cap-drop=ALL --security-opt=no-new-privileges
-          -v "$RUNNER_TEMP/image-scan:/scan" "$TRIVY_IMAGE"
-          image --input /scan/image.tar --format cyclonedx --output /scan/image.cdx.json
+          docker run --rm --read-only --cap-drop=ALL --security-opt=no-new-privileges
+          --user "$(id -u):$(id -g)" --network=none
+          -e HOME=/cache -e TMPDIR=/cache/tmp
+          -v "$RUNNER_TEMP/image-scan-input:/scan:ro"
+          -v "$RUNNER_TEMP/image-scan:/reports"
+          -v "$RUNNER_TEMP/image-scan-cache:/cache" "$TRIVY_IMAGE"
+          image --input /scan/image.tar --format cyclonedx --output /reports/image.cdx.json --cache-dir /cache/trivy
       - name: Fail on high or critical image vulnerabilities (including unfixed)
         run: >-
-          docker run --rm --cap-drop=ALL --security-opt=no-new-privileges
-          -v "$RUNNER_TEMP/image-scan:/scan:ro" "$TRIVY_IMAGE"
-          image --input /scan/image.tar --scanners vuln --severity HIGH,CRITICAL --exit-code 1 --no-progress
+          docker run --rm --read-only --cap-drop=ALL --security-opt=no-new-privileges
+          --user "$(id -u):$(id -g)"
+          -e HOME=/cache -e TMPDIR=/cache/tmp
+          -v "$RUNNER_TEMP/image-scan-input:/scan:ro"
+          -v "$RUNNER_TEMP/image-scan-cache:/cache" "$TRIVY_IMAGE"
+          image --input /scan/image.tar --scanners vuln --severity HIGH,CRITICAL --exit-code 1 --no-progress --cache-dir /cache/trivy
       - name: Retain SBOM only; never upload image archives, environment files or clinical data
         if: always() && steps.sbom.outcome == 'success'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -90,6 +101,10 @@ jobs:
           path: ${{ runner.temp }}/image-scan/image.cdx.json
           if-no-files-found: error
           retention-days: 7
+      # No custom filesystem cleanup: this job requires a fresh GitHub-hosted
+      # ephemeral runner. Private synthetic archives/cache/reports remain local
+      # until runner disposal, including on failure/cancellation; only the SBOM
+      # above is uploaded. Reassess this policy before using persistent runners.
 
   security-required:
     name: Security required

@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { assertIntegrationReport, backendUnitSuites, discoverBackendSuites } from './release-suites.mjs';
 import { run } from './release-runner.mjs';
 import { syntheticDatabaseUrl } from './synthetic-secrets.mjs';
+import { CI_DATABASE_IMAGES } from './ci-database.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const read = path => readFileSync(join(root, path), 'utf8');
@@ -113,6 +114,13 @@ test('compiled and source CLI forwarding preserve the actual rootDir/outDir layo
   assert.match(read('backend/src/db/schemaState.ts'), /EXPECTED_SCHEMA_VERSIONS = \[1, 2, 3\]/);
   assert.match(read('backend/src/db/cli.ts'), /RELEASE_MIGRATION_APPROVED !== 'true'/);
   for (const flag of ['--approved-production', '--confirm-migration']) assert.ok(read('backend/src/db/cli.ts').includes(flag));
+});
+
+test('Verify CI image receipts match the runtime allowlist while retaining the exact shared URL guard', () => {
+  const workflow = read('.github/workflows/verify.yml');
+  for (const image of Object.values(CI_DATABASE_IMAGES)) assert.ok(workflow.includes(`image: ${image}`));
+  assert.match(read('tests/configure-test-database.mjs'), /requireAuditDatabase\(\{ TEST_DATABASE_URL: url.href \}\)/);
+  assert.match(read('tests/ci-database.mjs'), /configureTestDatabase\(\{ TEST_DATABASE_PASSWORD: password, GITHUB_ENV: env.GITHUB_ENV \}/);
 });
 
 test('application image bases use registry-verified OCI index receipts without changing runtime layout', () => {

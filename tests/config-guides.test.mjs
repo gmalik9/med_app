@@ -29,6 +29,17 @@ test('setup explicitly distinguishes unit-friendly skips from required release i
     '55439/medapp_audit', 'America/New_York']) assert.ok(text.includes(term), `Missing setup contract: ${term}`);
 });
 
+test('current Verify CI guidance documents masked ephemeral provisioning rather than owner-secret setup', () => {
+  for (const file of ['SETUP.md', 'OPERATIONS.md']) {
+    const text = readFileSync(new URL(file, root), 'utf8');
+    for (const term of ['no repository database secret', '32-byte random password',
+      '127.0.0.1:55439:5432', 'job-owned', 'docs/verification/ci-database-fix.md']) {
+      assert.ok(text.includes(term), `${file}: missing ephemeral CI contract: ${term}`);
+    }
+    assert.doesNotMatch(text, /TEST_DATABASE_PASSWORD.{0,60}repository secret|owner setup pending|fork pull requests do not receive it/);
+  }
+});
+
 test('new current guide links resolve locally (no network requests)', () => {
   const supplemental = [...coordinated, 'docs/verification/IMPLEMENTATION_STATUS.md',
     'docs/verification/track-i-integration.md', 'docs/verification/track-h-decisions.md'];

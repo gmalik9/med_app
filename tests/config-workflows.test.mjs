@@ -27,15 +27,18 @@ test('workflow actions use verified commit receipts and no privileged PR trigger
 test('verification matrix requires actual database metadata and non-skipping release verification', () => {
   const text = read('.github/workflows/verify.yml');
   for (const fragment of ["pg: ['15', '17']", 'timezone: [UTC, America/New_York]',
-    'PGTZ: ${{ matrix.timezone }}', 'EXPECTED_PG_TIMEZONE: ${{ matrix.timezone }}',
-    "ports: ['55439:5432']", 'node tests/release-database-info.mjs', 'npm ci',
+    'CI_DATABASE_IMAGE: ${{ matrix.image }}', 'EXPECTED_PG_TIMEZONE: ${{ matrix.timezone }}',
+    'node tests/release-database-info.mjs', 'npm ci',
     'npm run verify:release', 'needs: [required-integration]', 'if: always()',
-    'TEST_DATABASE_PASSWORD: ${{ secrets.TEST_DATABASE_PASSWORD }}', 'POSTGRES_USER: audit',
-    'POSTGRES_PASSWORD: ${{ secrets.TEST_DATABASE_PASSWORD }}', 'POSTGRES_DB: medapp_audit',
-    'node tests/configure-test-database.mjs',
+    'node tests/ci-database.mjs start', 'node tests/ci-database.mjs cleanup',
     'npm run test:inventory', 'node tests/release-runner.mjs --check-database',
     'test "$RESULT" = success']) assert.ok(text.includes(fragment), fragment);
   assert.equal([...text.matchAll(/image: postgres:(?:15|17)-alpine@sha256:[a-f0-9]{64}/g)].length, 2);
+  assert.doesNotMatch(text, /services:|TEST_DATABASE_PASSWORD|\$\{\{\s*secrets\.|GITHUB_OUTPUT/);
+  assert.ok(text.indexOf('actions/checkout@') < text.indexOf('actions/setup-node@'));
+  assert.ok(text.indexOf('actions/setup-node@') < text.indexOf('node tests/ci-database.mjs start'));
+  assert.ok(text.indexOf('node tests/ci-database.mjs start') < text.indexOf('npm ci'));
+  assert.match(text, /if: always\(\)\s+run: node tests\/ci-database\.mjs cleanup/);
 });
 
 test('security jobs scan fetched full history with redaction and retain only SBOM artifacts', () => {

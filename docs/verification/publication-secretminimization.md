@@ -1,5 +1,10 @@
 # Publication credential minimization — 2026-09-22
 
+> **CI prerequisite update — 2026-09-23:** the [current CI fixes](github-ci-fixes.md)
+> supersede every CI repository-secret setup requirement below: job-owned PostgreSQL
+> now uses generated, masked ephemeral credentials; no supplied `TEST_DATABASE_PASSWORD`
+> repository secret is required. Other historical facts remain unchanged.
+
 > **Current publication status:** the [current final verification](#current-final-publication-status)
 > below supersedes earlier fresh-DB/browser and restaging-pending statements.
 > This document is authoritative for this publication pass; earlier receipts below
