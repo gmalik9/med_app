@@ -2,13 +2,17 @@ import { query } from './index';
 import * as bcrypt from 'bcryptjs';
 
 export async function seedDatabase() {
+  if (process.env.NODE_ENV === 'production') throw new Error('Seeding is prohibited in production');
+  const doctorPassword = process.env.SEED_PASSWORD;
+  if (!doctorPassword || doctorPassword.length < 12 || Buffer.byteLength(doctorPassword, 'utf8') > 72 || /^<.*>$/.test(doctorPassword)) {
+    throw new Error('SEED_PASSWORD is required (12 characters minimum, 72 UTF-8 bytes maximum) for development seeding');
+  }
   try {
     console.log('🌱 Seeding database with dummy data...');
 
     // Create a doctor
     const doctorEmail = 'doctor@hospital.com';
-    const doctorPassword = 'SecurePass123!';
-    const hashedPassword = await bcrypt.hash(doctorPassword, 12);
+    const hashedPassword = await bcrypt.hash(doctorPassword, 10);
 
     const doctorResult = await query(
       `INSERT INTO users (email, password_hash, first_name, last_name, role, specialty, license_number, is_active)
@@ -160,13 +164,13 @@ export async function seedDatabase() {
     console.log('\n✅ Database seeding completed successfully!\n');
     console.log('Test Account:');
     console.log('  Email: doctor@hospital.com');
-    console.log('  Password: SecurePass123!');
+    console.log('  Password: supplied through SEED_PASSWORD; existing account passwords are unchanged.');
     console.log('\nTest Patients:');
     console.log('  P001: John Doe');
     console.log('  P002: Jane Smith');
     console.log('  P003: Robert Johnson');
   } catch (err) {
-    console.error('Error seeding database:', err);
+    console.error('Error seeding database:');
     throw err;
   }
 }

@@ -1,14 +1,19 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { apiClient } from '../utils/apiClient';
+import { HistoryPaging, useHistoryPage } from './PatientHistory';
 
 interface Props { 
   patientId: string | number;
 }
 
 export default function TemplatesAnalyticsPanel({ patientId }: Props) {
-  const [vitals, setVitals] = useState<any[]>([]);
-  const [trends, setTrends] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const page = useHistoryPage(`analytics-vitals:${patientId}`, 'vitalSigns', cursor => apiClient.getVitalsHistory(patientId, 10, cursor));
+  const { rows: vitals, loading } = page;
+  const analytics = useHistoryPage(`trends:${patientId}`, 'records', async () => {
+    const response = await apiClient.getPatientTrends(patientId);
+    return { data: { records: [{ ...response.data.trends, id: 1 }], hasMore: false, nextCursor: null } };
+  });
+  const trends = analytics.rows[0];
   const [isMobile, setIsMobile] = React.useState(typeof window !== 'undefined' && window.innerWidth <= 768);
 
   React.useEffect(() => {
@@ -19,37 +24,16 @@ export default function TemplatesAnalyticsPanel({ patientId }: Props) {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  useEffect(() => {
-    loadPatientData();
-  }, [patientId]);
-
-  const loadPatientData = async () => {
-    try {
-      setLoading(true);
-      // Load patient vitals history
-      const vitalsResponse = await apiClient.getVitalsHistory(patientId, 10);
-      setVitals(vitalsResponse.data.vitals || []);
-      
-      // Load patient trends
-      const trendsResponse = await apiClient.getPatientTrends(patientId);
-      setTrends(trendsResponse.data.trends || {});
-    } catch (err) {
-      console.error('Error loading patient analytics:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <div style={{ ...styles.wrapper, gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr' }}>
       <div style={styles.card}>
         <h3 style={styles.title}>Vitals History</h3>
-        {loading ? (
+        {loading && vitals.length === 0 ? (
           <div style={styles.loading}>Loading vitals...</div>
         ) : vitals.length > 0 ? (
           <div style={styles.list}>
-            {vitals.slice(0, 5).map((vital, idx) => (
-              <div key={idx} style={styles.item}>
+            {vitals.map((vital) => (
+              <div key={vital.id} style={styles.item}>
                 <div style={styles.vitalDate}>{new Date(vital.recorded_date).toLocaleString()}</div>
                 <div style={styles.vitalData}>
                   {vital.temperature && <span>🌡️ {vital.temperature}°C</span>}
@@ -61,13 +45,15 @@ export default function TemplatesAnalyticsPanel({ patientId }: Props) {
             ))}
           </div>
         ) : (
-          <div style={styles.empty}>No vitals recorded yet</div>
+          !page.error && <div style={styles.empty}>No vitals recorded yet</div>
         )}
+        <HistoryPaging page={page} />
       </div>
 
       <div style={styles.card}>
         <h3 style={styles.title}>Patient Analytics</h3>
-        {loading ? (
+        {analytics.error && <div role="alert">{analytics.error} <button type="button" onClick={analytics.reload}>Retry analytics</button></div>}
+        {analytics.loading ? (
           <div style={styles.loading}>Loading analytics...</div>
         ) : (
           <div style={styles.list}>

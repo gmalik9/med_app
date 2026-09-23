@@ -1,0 +1,19 @@
+{
+  "name": "vosk-model-small-en-in-0.4",
+  "language": "Indian English",
+  "license": "Apache-2.0",
+  "catalog": "https://alphacephei.com/vosk/models",
+  "sourceUrl": "https://alphacephei.com/vosk/models/vosk-model-small-en-in-0.4.zip",
+  "sourceBytes": 37573330,
+  "sourceSha256": "20663dcac4d5cb783a579c54d98339344a688e4ec6e1b4a4b059fd1235454cc7",
+  "sourceTrust": "SHA256 computed from the first official HTTPS download on 2026-09-22; not a publisher-signed digest.",
+  "packagingVersion": "browser-v2",
+  "packaging": "Deterministic gzip/USTAR: explicit 0755 directories (including model/) before all 0644 regular files; all 14 source files byte-preserved.",
+  "assetUrl": "/models/vosk-model-small-en-in-0.4-browser-v2.tar.gz",
+  "assetBytes": 37469120,
+  "assetSha256": "3bbe45dc4a1efcf4d316067697ed0f250dc348750a17e54038482dbcc512ca16",
+  "archiveRoot": "model",
+  "expandedBytes": 56700192,
+  "runtimePackage": "vosk-browser@0.0.8",
+  "runtimePackageLicense": "Apache-2.0"
+}

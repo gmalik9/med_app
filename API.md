@@ -1,3 +1,5 @@
+> Current contracts, authorization boundaries, limits, note revisions and rotating refresh tokens are documented in [AUDIT_API_INVENTORY.md](AUDIT_API_INVENTORY.md) and [OPERATIONS.md](OPERATIONS.md). Those supersede conflicting historical examples below. There is no public seed endpoint; production self-registration is disabled by default.
+
 # API Documentation
 
 ## Base URL
@@ -25,7 +27,7 @@ Create a new doctor/user account.
 ```json
 {
   "email": "doctor@example.com",
-  "password": "secure_password",
+  "password": "<user-supplied-password>",
   "firstName": "John",
   "lastName": "Doe"
 }
@@ -39,8 +41,8 @@ Create a new doctor/user account.
     "email": "doctor@example.com",
     "role": "doctor"
   },
-  "accessToken": "DOCUMENTATION_TOKEN_PLACEHOLDER",
-  "refreshToken": "DOCUMENTATION_TOKEN_PLACEHOLDER"
+  "accessToken": "<access-token>",
+  "refreshToken": "<refresh-token>"
 }
 ```
 
@@ -53,7 +55,7 @@ Authenticate doctor and get tokens.
 ```json
 {
   "email": "doctor@example.com",
-  "password": "secure_password"
+  "password": "<user-supplied-password>"
 }
 ```
 
@@ -65,8 +67,8 @@ Authenticate doctor and get tokens.
     "email": "doctor@example.com",
     "role": "doctor"
   },
-  "accessToken": "DOCUMENTATION_TOKEN_PLACEHOLDER",
-  "refreshToken": "DOCUMENTATION_TOKEN_PLACEHOLDER"
+  "accessToken": "<access-token>",
+  "refreshToken": "<refresh-token>"
 }
 ```
 
@@ -78,14 +80,14 @@ Get a new access token using refresh token.
 **Request Body:**
 ```json
 {
-  "refreshToken": "DOCUMENTATION_TOKEN_PLACEHOLDER"
+  "refreshToken": "<refresh-token>"
 }
 ```
 
 **Response (200):**
 ```json
 {
-  "accessToken": "DOCUMENTATION_TOKEN_PLACEHOLDER"
+  "accessToken": "<access-token>"
 }
 ```
 
@@ -402,7 +404,7 @@ curl -X POST http://localhost:5000/api/auth/register \
   -H "Content-Type: application/json" \
   -d '{
     "email": "doctor@example.com",
-    "password": "secure123",
+    "password": "<user-supplied-password>",
     "firstName": "John",
     "lastName": "Doe"
   }'

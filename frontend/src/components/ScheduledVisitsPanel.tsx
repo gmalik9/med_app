@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { apiClient } from '../utils/apiClient';
+import { HistoryPaging, useHistoryPage } from './PatientHistory';
 
 interface ScheduledVisitsPanelProps {
   patientId: string | number;
@@ -17,25 +18,10 @@ interface Visit {
 }
 
 export default function ScheduledVisitsPanel({ patientId }: ScheduledVisitsPanelProps) {
-  const [visits, setVisits] = useState<Visit[]>([]);
-  const [loading, setLoading] = useState(false);
   const [upcomingOnly, setUpcomingOnly] = useState(true);
-
-  useEffect(() => {
-    loadVisits();
-  }, [patientId]);
-
-  const loadVisits = async () => {
-    try {
-      setLoading(true);
-      const response = await apiClient.getVisitHistory(patientId, 20);
-      setVisits(response.data.visits || []);
-    } catch (err: any) {
-      console.error('Error loading visits:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const filter = upcomingOnly ? 'upcoming' : 'all';
+  const page = useHistoryPage<Visit>(`scheduled-visits:${patientId}:${filter}`, 'visits', cursor => apiClient.getVisitHistory(patientId, 20, cursor, filter));
+  const visits = page.rows;
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -48,10 +34,6 @@ export default function ScheduledVisitsPanel({ patientId }: ScheduledVisitsPanel
     });
   };
 
-  const isUpcoming = (visitDate: string) => {
-    return new Date(visitDate) > new Date();
-  };
-
   const isToday = (visitDate: string) => {
     const today = new Date();
     const visitD = new Date(visitDate);
@@ -61,21 +43,6 @@ export default function ScheduledVisitsPanel({ patientId }: ScheduledVisitsPanel
       visitD.getFullYear() === today.getFullYear()
     );
   };
-
-  const filteredVisits = upcomingOnly ? visits.filter((v) => isUpcoming(v.visit_date)) : visits;
-
-  if (loading) {
-    return <div style={styles.loading}>Loading visits...</div>;
-  }
-
-  if (visits.length === 0) {
-    return (
-      <div style={styles.card}>
-        <h3 style={styles.title}>📅 Scheduled Visits</h3>
-        <p style={styles.emptyMessage}>No visits scheduled</p>
-      </div>
-    );
-  }
 
   return (
     <div style={styles.card}>
@@ -92,15 +59,15 @@ export default function ScheduledVisitsPanel({ patientId }: ScheduledVisitsPanel
         </button>
       </div>
 
-      {filteredVisits.length === 0 ? (
+      {visits.length === 0 && !page.loading && !page.error ? (
         <p style={styles.emptyMessage}>
           {upcomingOnly ? 'No upcoming visits scheduled' : 'No visits found'}
         </p>
       ) : (
         <div style={styles.visitsList}>
-          {filteredVisits.map((visit, idx) => (
+          {visits.map((visit) => (
             <div
-              key={idx}
+              key={visit.id}
               style={{
                 ...styles.visitItem,
                 borderLeftColor: isToday(visit.visit_date) ? '#ff9800' : '#2196F3',
@@ -144,6 +111,7 @@ export default function ScheduledVisitsPanel({ patientId }: ScheduledVisitsPanel
           ))}
         </div>
       )}
+      <HistoryPaging page={page} />
     </div>
   );
 }

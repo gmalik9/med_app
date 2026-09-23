@@ -1,0 +1,960 @@
+{
+  "started": "2026-09-22T07:33:26.072Z",
+  "node": "v22.23.2",
+  "capture": true,
+  "cases": [
+    {
+      "name": "served-assets-and-csp",
+      "passed": true,
+      "milliseconds": 509
+    },
+    {
+      "name": "cold-real-mic-recognition-and-stop-barrier",
+      "passed": true,
+      "milliseconds": 11309
+    },
+    {
+      "name": "explicit-save-reload-patient-search",
+      "passed": true,
+      "milliseconds": 280
+    },
+    {
+      "name": "warm-idb-offline-recognition-online-save",
+      "passed": true,
+      "milliseconds": 11383
+    },
+    {
+      "name": "missing-model-manual-recovery",
+      "passed": true,
+      "milliseconds": 2153
+    },
+    {
+      "name": "native-permission-denied-manual-recovery",
+      "passed": true,
+      "milliseconds": 1868
+    },
+    {
+      "name": "cancel-loading",
+      "passed": true,
+      "milliseconds": 2876
+    },
+    {
+      "name": "patient-change-cancels-real-recognition",
+      "passed": true,
+      "milliseconds": 11556
+    },
+    {
+      "name": "logout-cancels-real-recognition",
+      "passed": true,
+      "milliseconds": 9950
+    }
+  ],
+  "screenshots": [
+    {
+      "path": "vosk-01-listening.png",
+      "caption": "Actual cold Vosk recognition; synthetic Rishi voice; interim not saved",
+      "sha256": "dc25739bfa7114cacbc6d622fdc8aceef0450e8c07f56696412faa078bb53b72",
+      "at": "2026-09-22T07:33:40.064Z"
+    },
+    {
+      "path": "vosk-02-saved.png",
+      "caption": "Actual final text saved via API/PostgreSQL and reloaded by patient search",
+      "sha256": "27eeb0747aeffab057d092b9f190932e77b5f6bf2630643ceba0159fd644f42a",
+      "at": "2026-09-22T07:33:40.481Z"
+    },
+    {
+      "path": "vosk-03-permission-denied.png",
+      "caption": "Test-configured native permission denial (not a human mic); manual editing remains available",
+      "sha256": "ec6e32249ffb7a3ba480d293f8db72372692d2627daacf060d18cc479e078792",
+      "at": "2026-09-22T07:33:55.681Z"
+    }
+  ],
+  "audio": {
+    "path": "/var/folders/fp/vqlzzcv508q1tpv251j2pq6r0000gn/T/medapp-vosk-synthetic-u88iVx/virtual-microphone.wav",
+    "directory": "/var/folders/fp/vqlzzcv508q1tpv251j2pq6r0000gn/T/medapp-vosk-synthetic-u88iVx",
+    "phrase": "one two three four five",
+    "voice": "Rishi (en_IN)",
+    "sampleRate": 48000,
+    "durationSeconds": 14.548333333333334,
+    "sha256": "c1018df69920214b0f5300bf81c40af0f99660591dd2f77ba079df12a2f0b459"
+  },
+  "diagnostics": [
+    {
+      "requests": 103,
+      "model": 1,
+      "worker": 4,
+      "worklet": 3,
+      "apiWrites": 4,
+      "audioUploads": 0,
+      "external": 0,
+      "unexpectedRequests": 0,
+      "pageErrors": 0,
+      "consoleErrors": 0,
+      "httpErrors": 0,
+      "failedRequests": 0,
+      "expectedHttpErrors": 0,
+      "expectedFailedRequests": 0,
+      "expectedConsoleErrors": 0
+    },
+    {
+      "requests": 46,
+      "model": 1,
+      "worker": 1,
+      "worklet": 0,
+      "apiWrites": 2,
+      "audioUploads": 0,
+      "external": 0,
+      "unexpectedRequests": 0,
+      "pageErrors": 0,
+      "consoleErrors": 0,
+      "httpErrors": 0,
+      "failedRequests": 0,
+      "expectedHttpErrors": 1,
+      "expectedFailedRequests": 0,
+      "expectedConsoleErrors": 0
+    },
+    {
+      "requests": 43,
+      "model": 0,
+      "worker": 0,
+      "worklet": 0,
+      "apiWrites": 2,
+      "audioUploads": 0,
+      "external": 0,
+      "unexpectedRequests": 0,
+      "pageErrors": 0,
+      "consoleErrors": 0,
+      "httpErrors": 0,
+      "failedRequests": 0,
+      "expectedHttpErrors": 0,
+      "expectedFailedRequests": 0,
+      "expectedConsoleErrors": 0
+    },
+    {
+      "requests": 20,
+      "model": 1,
+      "worker": 1,
+      "worklet": 0,
+      "apiWrites": 1,
+      "audioUploads": 0,
+      "external": 0,
+      "unexpectedRequests": 0,
+      "pageErrors": 0,
+      "consoleErrors": 0,
+      "httpErrors": 0,
+      "failedRequests": 0,
+      "expectedHttpErrors": 0,
+      "expectedFailedRequests": 0,
+      "expectedConsoleErrors": 0
+    }
+  ],
+  "origin": "http://localhost:5173",
+  "selectedModel": {
+    "name": "vosk-model-small-en-in-0.4",
+    "language": "Indian English",
+    "license": "Apache-2.0",
+    "catalog": "https://alphacephei.com/vosk/models",
+    "sourceUrl": "https://alphacephei.com/vosk/models/vosk-model-small-en-in-0.4.zip",
+    "sourceBytes": 37573330,
+    "sourceSha256": "20663dcac4d5cb783a579c54d98339344a688e4ec6e1b4a4b059fd1235454cc7",
+    "sourceTrust": "SHA256 computed from the first official HTTPS download on 2026-09-22; not a publisher-signed digest.",
+    "packagingVersion": "browser-v2",
+    "packaging": "Deterministic gzip/USTAR: explicit 0755 directories (including model/) before all 0644 regular files; all 14 source files byte-preserved.",
+    "assetUrl": "/models/vosk-model-small-en-in-0.4-browser-v2.tar.gz",
+    "assetBytes": 37469120,
+    "assetSha256": "3bbe45dc4a1efcf4d316067697ed0f250dc348750a17e54038482dbcc512ca16",
+    "archiveRoot": "model",
+    "expandedBytes": 56700192,
+    "runtimePackage": "vosk-browser@0.0.8",
+    "runtimePackageLicense": "Apache-2.0"
+  },
+  "assets": {
+    "/": {
+      "bytes": 566,
+      "sha256": "dbe434207ca345be63445161ac85c287efe668c38e553e3e2972fb4831e53db6",
+      "policy": "default-src 'self'; script-src 'self'; worker-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
+      "cacheControl": "no-store"
+    },
+    "/models/manifest.json": {
+      "bytes": 984,
+      "sha256": "c0bdfae990222c04257539ea69e1ec05ed4a90ad3749b1d29e464316f1bacba0",
+      "policy": "default-src 'self'; script-src 'self'; worker-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
+      "cacheControl": "no-store"
+    },
+    "/models/vosk-model-small-en-in-0.4-browser-v2.tar.gz": {
+      "bytes": 37469120,
+      "sha256": "3bbe45dc4a1efcf4d316067697ed0f250dc348750a17e54038482dbcc512ca16",
+      "policy": "default-src 'self'; script-src 'self'; worker-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
+      "cacheControl": "public, max-age=31536000, immutable"
+    },
+    "/vosk/vosk-browser-0.0.8.worker.js": {
+      "bytes": 4332931,
+      "sha256": "97e41235ef1de0deb14154259248a0931c77aabba7507b369862bfa6a9fff842",
+      "policy": "default-src 'self'; script-src 'self' 'unsafe-eval'; worker-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
+      "cacheControl": "no-store"
+    }
+  },
+  "browser": "153.0.8010.53",
+  "coldReadyMs": 1618,
+  "cold": {
+    "transcript": "one two three four five",
+    "stopDrainMs": 126,
+    "resources": {
+      "events": [
+        {
+          "kind": "status",
+          "text": "Stopped",
+          "saveDisabled": true
+        },
+        {
+          "kind": "status",
+          "text": "Loading model",
+          "saveDisabled": true
+        },
+        {
+          "kind": "status",
+          "text": "Listening",
+          "saveDisabled": true
+        },
+        {
+          "kind": "utterance-final"
+        },
+        {
+          "kind": "capture-stop"
+        },
+        {
+          "kind": "status",
+          "text": "Processing",
+          "saveDisabled": true
+        },
+        {
+          "kind": "capture-drained"
+        },
+        {
+          "kind": "flush-sent"
+        },
+        {
+          "kind": "flush-final"
+        },
+        {
+          "kind": "worker-terminated"
+        },
+        {
+          "kind": "status",
+          "text": "Stopped",
+          "saveDisabled": false
+        }
+      ],
+      "statuses": [
+        {
+          "text": "Stopped",
+          "saveDisabled": true
+        },
+        {
+          "text": "Loading model",
+          "saveDisabled": true
+        },
+        {
+          "text": "Listening",
+          "saveDisabled": true
+        },
+        {
+          "text": "Processing",
+          "saveDisabled": true
+        },
+        {
+          "text": "Stopped",
+          "saveDisabled": false
+        }
+      ],
+      "previews": [
+        "one",
+        "one two",
+        "one two three",
+        "one two three four",
+        "one two three four five"
+      ],
+      "workers": [
+        {
+          "url": "/vosk/vosk-browser-0.0.8.worker.js",
+          "terminated": 1,
+          "frames": 460800,
+          "partials": [
+            "one",
+            "one",
+            "one",
+            "one",
+            "one",
+            "one",
+            "one two",
+            "one two",
+            "one two three",
+            "one two three",
+            "one two three",
+            "one two three four",
+            "one two three four",
+            "one two three four",
+            "one two three four",
+            "one two three four",
+            "one two three four",
+            "one two three four five",
+            "one two three four five",
+            "one two three four five",
+            "one two three four five",
+            "one two three four five",
+            "one two three four five",
+            "one two three four five",
+            "one two three four five"
+          ],
+          "finals": [
+            {
+              "text": "",
+              "flush": false
+            },
+            {
+              "text": "one two three four five",
+              "flush": true
+            }
+          ]
+        }
+      ],
+      "ports": [
+        {
+          "closed": true,
+          "disconnected": true,
+          "frames": 460800
+        }
+      ],
+      "tracks": [
+        "ended"
+      ],
+      "contexts": [
+        "closed"
+      ],
+      "violations": 0
+    }
+  },
+  "worklet": {
+    "path": "/assets/dictationCapture.worklet-BFvot1Sa.js",
+    "policy": "default-src 'self'; script-src 'self'; worker-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
+    "sha256": "6dc4a3c02b3eeded13a9c62bd6556540d60a23bd6821a1141203c467f1c195f7"
+  },
+  "saved": {
+    "patient": "VOSK-07ca79f3b86d",
+    "date": "2026-09-22",
+    "revision": 1,
+    "transcript": "one two three four five",
+    "sha256": "bb1262c1cf29a3e8785c91295f20c7e6b596ac739c3ac6052f2f023f2b3d72b6",
+    "reloadedViaPatientSearch": true,
+    "medicalCodes": [],
+    "medications": "",
+    "medicalConditions": ""
+  },
+  "cache": [
+    {
+      "database": "/vosk",
+      "store": "FILE_DATA",
+      "keys": [
+        "/vosk/_models_vosk_model_small_en_in_0_4_browser_v2_tar_gz",
+        "/vosk/_models_vosk_model_small_en_in_0_4_browser_v2_tar_gz/README",
+        "/vosk/_models_vosk_model_small_en_in_0_4_browser_v2_tar_gz/am",
+        "/vosk/_models_vosk_model_small_en_in_0_4_browser_v2_tar_gz/am/final.mdl",
+        "/vosk/_models_vosk_model_small_en_in_0_4_browser_v2_tar_gz/conf",
+        "/vosk/_models_vosk_model_small_en_in_0_4_browser_v2_tar_gz/conf/mfcc.conf",
+        "/vosk/_models_vosk_model_small_en_in_0_4_browser_v2_tar_gz/conf/model.conf",
+        "/vosk/_models_vosk_model_small_en_in_0_4_browser_v2_tar_gz/extracted.ok",
+        "/vosk/_models_vosk_model_small_en_in_0_4_browser_v2_tar_gz/graph",
+        "/vosk/_models_vosk_model_small_en_in_0_4_browser_v2_tar_gz/graph/Gr.fst",
+        "/vosk/_models_vosk_model_small_en_in_0_4_browser_v2_tar_gz/graph/HCLr.fst",
+        "/vosk/_models_vosk_model_small_en_in_0_4_browser_v2_tar_gz/graph/disambig_tid.int",
+        "/vosk/_models_vosk_model_small_en_in_0_4_browser_v2_tar_gz/graph/phones",
+        "/vosk/_models_vosk_model_small_en_in_0_4_browser_v2_tar_gz/graph/phones/word_boundary.int",
+        "/vosk/_models_vosk_model_small_en_in_0_4_browser_v2_tar_gz/ivector",
+        "/vosk/_models_vosk_model_small_en_in_0_4_browser_v2_tar_gz/ivector/final.dubm",
+        "/vosk/_models_vosk_model_small_en_in_0_4_browser_v2_tar_gz/ivector/final.ie",
+        "/vosk/_models_vosk_model_small_en_in_0_4_browser_v2_tar_gz/ivector/final.mat",
+        "/vosk/_models_vosk_model_small_en_in_0_4_browser_v2_tar_gz/ivector/global_cmvn.stats",
+        "/vosk/_models_vosk_model_small_en_in_0_4_browser_v2_tar_gz/ivector/online_cmvn.conf",
+        "/vosk/_models_vosk_model_small_en_in_0_4_browser_v2_tar_gz/ivector/splice.conf"
+      ]
+    }
+  ],
+  "warmReadyMs": 902,
+  "warm": {
+    "transcript": "one two three four five",
+    "stopDrainMs": 217,
+    "resources": {
+      "events": [
+        {
+          "kind": "status",
+          "text": "Stopped",
+          "saveDisabled": true
+        },
+        {
+          "kind": "status",
+          "text": "Loading model",
+          "saveDisabled": true
+        },
+        {
+          "kind": "status",
+          "text": "Listening",
+          "saveDisabled": true
+        },
+        {
+          "kind": "utterance-final"
+        },
+        {
+          "kind": "capture-stop"
+        },
+        {
+          "kind": "status",
+          "text": "Processing",
+          "saveDisabled": true
+        },
+        {
+          "kind": "capture-drained"
+        },
+        {
+          "kind": "flush-sent"
+        },
+        {
+          "kind": "flush-final"
+        },
+        {
+          "kind": "worker-terminated"
+        },
+        {
+          "kind": "status",
+          "text": "Stopped",
+          "saveDisabled": false
+        }
+      ],
+      "statuses": [
+        {
+          "text": "Stopped",
+          "saveDisabled": true
+        },
+        {
+          "text": "Loading model",
+          "saveDisabled": true
+        },
+        {
+          "text": "Listening",
+          "saveDisabled": true
+        },
+        {
+          "text": "Processing",
+          "saveDisabled": true
+        },
+        {
+          "text": "Stopped",
+          "saveDisabled": false
+        }
+      ],
+      "previews": [
+        "one",
+        "one two",
+        "one two three",
+        "one two three four",
+        "one two three four five"
+      ],
+      "workers": [
+        {
+          "url": "/vosk/vosk-browser-0.0.8.worker.js",
+          "terminated": 1,
+          "frames": 486144,
+          "partials": [
+            "one",
+            "one",
+            "one",
+            "one",
+            "one",
+            "one",
+            "one two",
+            "one two",
+            "one two",
+            "one two three",
+            "one two three",
+            "one two three",
+            "one two three four",
+            "one two three four",
+            "one two three four",
+            "one two three four",
+            "one two three four",
+            "one two three four five",
+            "one two three four five",
+            "one two three four five",
+            "one two three four five",
+            "one two three four five",
+            "one two three four five"
+          ],
+          "finals": [
+            {
+              "text": "",
+              "flush": false
+            },
+            {
+              "text": "one two three four five",
+              "flush": true
+            }
+          ]
+        }
+      ],
+      "ports": [
+        {
+          "closed": true,
+          "disconnected": true,
+          "frames": 486144
+        }
+      ],
+      "tracks": [
+        "ended"
+      ],
+      "contexts": [
+        "closed"
+      ],
+      "violations": 0
+    }
+  },
+  "offline": {
+    "requests": 0,
+    "apiWrites": 0,
+    "modelRequests": 0,
+    "outbound": 0
+  },
+  "warmSaved": {
+    "patient": "VOSK-0a105a431119",
+    "date": "2026-09-22",
+    "revision": 1,
+    "transcript": "one two three four five",
+    "sha256": "bb1262c1cf29a3e8785c91295f20c7e6b596ac739c3ac6052f2f023f2b3d72b6",
+    "reloadedViaPatientSearch": true,
+    "medicalCodes": [],
+    "medications": "",
+    "medicalConditions": ""
+  },
+  "missingModel": {
+    "resources": {
+      "events": [
+        {
+          "kind": "status",
+          "text": "Stopped",
+          "saveDisabled": true
+        },
+        {
+          "kind": "status",
+          "text": "Loading model",
+          "saveDisabled": true
+        },
+        {
+          "kind": "worker-terminated"
+        },
+        {
+          "kind": "status",
+          "text": "Stopped",
+          "saveDisabled": false
+        }
+      ],
+      "statuses": [
+        {
+          "text": "Stopped",
+          "saveDisabled": true
+        },
+        {
+          "text": "Loading model",
+          "saveDisabled": true
+        },
+        {
+          "text": "Stopped",
+          "saveDisabled": false
+        }
+      ],
+      "previews": [],
+      "workers": [
+        {
+          "url": "/vosk/vosk-browser-0.0.8.worker.js",
+          "terminated": 1,
+          "frames": 0,
+          "partials": [],
+          "finals": []
+        }
+      ],
+      "ports": [],
+      "tracks": [
+        "ended"
+      ],
+      "contexts": [
+        "closed"
+      ],
+      "violations": 0
+    },
+    "saved": {
+      "patient": "VOSK-279fc224666d",
+      "date": "2026-09-22",
+      "revision": 1,
+      "transcript": "SYNTHETIC manual draft survives a missing model. Reviewed.",
+      "sha256": "6f60236ae675e0b42dae045e9139110ea7eb493f633ae7e5ff496e6803d567bc",
+      "reloadedViaPatientSearch": true,
+      "medicalCodes": [],
+      "medications": "",
+      "medicalConditions": ""
+    }
+  },
+  "permissionDenied": {
+    "resources": {
+      "events": [
+        {
+          "kind": "status",
+          "text": "Stopped",
+          "saveDisabled": true
+        },
+        {
+          "kind": "status",
+          "text": "Loading model",
+          "saveDisabled": true
+        },
+        {
+          "kind": "status",
+          "text": "Stopped",
+          "saveDisabled": false
+        }
+      ],
+      "statuses": [
+        {
+          "text": "Stopped",
+          "saveDisabled": true
+        },
+        {
+          "text": "Loading model",
+          "saveDisabled": true
+        },
+        {
+          "text": "Stopped",
+          "saveDisabled": false
+        }
+      ],
+      "previews": [],
+      "workers": [],
+      "ports": [],
+      "tracks": [],
+      "contexts": [
+        "closed"
+      ],
+      "violations": 0
+    },
+    "saved": {
+      "patient": "VOSK-c63f097aff11",
+      "date": "2026-09-22",
+      "revision": 1,
+      "transcript": "SYNTHETIC manually typed note. Reviewed after permission denial.",
+      "sha256": "d08a54d82e429b4ae9561a8c5a5b1abbcf2186fe071ae99c2170597b81ec72ac",
+      "reloadedViaPatientSearch": true,
+      "medicalCodes": [],
+      "medications": "",
+      "medicalConditions": ""
+    }
+  },
+  "cancelLoading": {
+    "events": [
+      {
+        "kind": "status",
+        "text": "Stopped",
+        "saveDisabled": true
+      },
+      {
+        "kind": "status",
+        "text": "Loading model",
+        "saveDisabled": true
+      },
+      {
+        "kind": "worker-terminated"
+      },
+      {
+        "kind": "status",
+        "text": "Stopped",
+        "saveDisabled": false
+      }
+    ],
+    "statuses": [
+      {
+        "text": "Stopped",
+        "saveDisabled": true
+      },
+      {
+        "text": "Loading model",
+        "saveDisabled": true
+      },
+      {
+        "text": "Stopped",
+        "saveDisabled": false
+      }
+    ],
+    "previews": [],
+    "workers": [
+      {
+        "url": "/vosk/vosk-browser-0.0.8.worker.js",
+        "terminated": 1,
+        "frames": 0,
+        "partials": [],
+        "finals": []
+      }
+    ],
+    "ports": [],
+    "tracks": [
+      "ended"
+    ],
+    "contexts": [
+      "closed"
+    ],
+    "violations": 0
+  },
+  "patientChange": {
+    "events": [
+      {
+        "kind": "status",
+        "text": "Stopped",
+        "saveDisabled": true
+      },
+      {
+        "kind": "status",
+        "text": "Loading model",
+        "saveDisabled": true
+      },
+      {
+        "kind": "status",
+        "text": "Listening",
+        "saveDisabled": true
+      },
+      {
+        "kind": "utterance-final"
+      },
+      {
+        "kind": "worker-terminated"
+      },
+      {
+        "kind": "status",
+        "text": "Stopped",
+        "saveDisabled": true
+      }
+    ],
+    "statuses": [
+      {
+        "text": "Stopped",
+        "saveDisabled": true
+      },
+      {
+        "text": "Loading model",
+        "saveDisabled": true
+      },
+      {
+        "text": "Listening",
+        "saveDisabled": true
+      },
+      {
+        "text": "Stopped",
+        "saveDisabled": true
+      }
+    ],
+    "previews": [
+      "one",
+      "one two",
+      "one two three"
+    ],
+    "workers": [
+      {
+        "url": "/vosk/vosk-browser-0.0.8.worker.js",
+        "terminated": 1,
+        "frames": 442368,
+        "partials": [
+          "one",
+          "one",
+          "one",
+          "one two",
+          "one two",
+          "one two",
+          "one two three",
+          "one two three",
+          "one two three"
+        ],
+        "finals": [
+          {
+            "text": "",
+            "flush": false
+          }
+        ]
+      }
+    ],
+    "ports": [
+      {
+        "closed": true,
+        "disconnected": true,
+        "frames": 442368
+      }
+    ],
+    "tracks": [
+      "ended"
+    ],
+    "contexts": [
+      "closed"
+    ],
+    "violations": 0
+  },
+  "logout": {
+    "events": [
+      {
+        "kind": "status",
+        "text": "Stopped",
+        "saveDisabled": true
+      },
+      {
+        "kind": "status",
+        "text": "Loading model",
+        "saveDisabled": true
+      },
+      {
+        "kind": "status",
+        "text": "Listening",
+        "saveDisabled": true
+      },
+      {
+        "kind": "utterance-final"
+      },
+      {
+        "kind": "worker-terminated"
+      },
+      {
+        "kind": "status",
+        "text": "Stopped",
+        "saveDisabled": true
+      },
+      {
+        "kind": "status",
+        "text": "Loading model",
+        "saveDisabled": true
+      },
+      {
+        "kind": "status",
+        "text": "Listening",
+        "saveDisabled": true
+      },
+      {
+        "kind": "utterance-final"
+      },
+      {
+        "kind": "worker-terminated"
+      }
+    ],
+    "statuses": [
+      {
+        "text": "Stopped",
+        "saveDisabled": true
+      },
+      {
+        "text": "Loading model",
+        "saveDisabled": true
+      },
+      {
+        "text": "Listening",
+        "saveDisabled": true
+      },
+      {
+        "text": "Stopped",
+        "saveDisabled": true
+      },
+      {
+        "text": "Loading model",
+        "saveDisabled": true
+      },
+      {
+        "text": "Listening",
+        "saveDisabled": true
+      }
+    ],
+    "previews": [
+      "one",
+      "one two",
+      "one two three",
+      "one",
+      "one two",
+      "one two three"
+    ],
+    "workers": [
+      {
+        "url": "/vosk/vosk-browser-0.0.8.worker.js",
+        "terminated": 1,
+        "frames": 442368,
+        "partials": [
+          "one",
+          "one",
+          "one",
+          "one two",
+          "one two",
+          "one two",
+          "one two three",
+          "one two three",
+          "one two three"
+        ],
+        "finals": [
+          {
+            "text": "",
+            "flush": false
+          }
+        ]
+      },
+      {
+        "url": "/vosk/vosk-browser-0.0.8.worker.js",
+        "terminated": 1,
+        "frames": 442368,
+        "partials": [
+          "one",
+          "one",
+          "one",
+          "one two",
+          "one two",
+          "one two",
+          "one two three",
+          "one two three",
+          "one two three"
+        ],
+        "finals": [
+          {
+            "text": "",
+            "flush": false
+          }
+        ]
+      }
+    ],
+    "ports": [
+      {
+        "closed": true,
+        "disconnected": true,
+        "frames": 442368
+      },
+      {
+        "closed": true,
+        "disconnected": true,
+        "frames": 442368
+      }
+    ],
+    "tracks": [
+      "ended",
+      "ended"
+    ],
+    "contexts": [
+      "closed",
+      "closed"
+    ],
+    "violations": 0
+  },
+  "passed": true,
+  "remaining": {
+    "clinicalAccuracyVerified": false,
+    "realSpeakerVerified": false,
+    "independentEvaluation": "pending MAIN",
+    "fullRegression": "pending MAIN"
+  },
+  "stage": "complete",
+  "ended": "2026-09-22T07:34:20.369Z",
+  "evidenceDirectory": "/Users/girikmalik/Documents/girik_academic_resources/personal_projects/med_app/docs/verification/screenshots/vosk-20260922-final",
+  "receipt": "receipt-2026-09-22T07-33-26.072Z.json"
+}

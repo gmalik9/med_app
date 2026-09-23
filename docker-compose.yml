@@ -1,65 +1,43 @@
-version: '3.8'
-
+# Local synthetic-data development ONLY. Not an ePHI production deployment.
+# Supply credentials privately; DATABASE_URL must use the postgres service hostname
+# and the same password as POSTGRES_PASSWORD, percent-encoded in its URL.
 services:
   postgres:
     image: postgres:15-alpine
     environment:
       POSTGRES_USER: medapp
-      POSTGRES_PASSWORD: medapp_dev_password
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
       POSTGRES_DB: med_app_db
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
+    ports: ["127.0.0.1:${POSTGRES_HOST_PORT:-5432}:5432"]
+    volumes: ["postgres_data:/var/lib/postgresql/data"]
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U medapp"]
-      interval: 10s
+      test: ["CMD-SHELL", "pg_isready -U medapp -d med_app_db"]
+      interval: 5s
       timeout: 5s
-      retries: 5
-
+      retries: 10
   backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    ports:
-      - "5001:5000"
+    build: { context: ., dockerfile: backend/Dockerfile }
+    ports: ["127.0.0.1:5001:5000"]
     environment:
       PORT: 5000
-      DATABASE_URL: postgresql://medapp:medapp_dev_password@postgres:5432/med_app_db
-      JWT_SECRET: dev_jwt_secret_change_in_production_12345
-      JWT_REFRESH_SECRET: dev_refresh_secret_change_in_production_12345
-      NODE_ENV: production
-      ALLOWED_ORIGINS: http://localhost:3000,http://localhost:5173,http://127.0.0.1:5173,http://localhost:5001
+      HOST: 0.0.0.0
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required for the postgres service}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?JWT_REFRESH_SECRET is required}
+      NODE_ENV: development
+      ALLOWED_ORIGINS: http://localhost:5173,http://127.0.0.1:5173
+      TRUST_PROXY_HOPS: 1
       SESSION_TIMEOUT_MINUTES: 15
+      ENABLE_EXTERNAL_AI: "false"
+      ALLOW_SELF_REGISTRATION: "true"
       SEED_DATABASE: ${SEED_DATABASE:-false}
-    env_file:
-      - secrets.env
+      SEED_PASSWORD: ${SEED_PASSWORD:-}
     depends_on:
-      postgres:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
+      postgres: { condition: service_healthy }
   frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    ports:
-      - "5173:5173"
+    build: { context: ., dockerfile: frontend/Dockerfile }
+    ports: ["127.0.0.1:5173:8080"]
     depends_on:
-      - backend
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5173"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
+      backend: { condition: service_healthy }
 volumes:
   postgres_data:
-
-networks:
-  default:
-    name: medapp_network

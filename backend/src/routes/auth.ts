@@ -1,14 +1,23 @@
 import { Router, Request, Response } from 'express';
-import { query } from '../db';
-import { generateAccessToken, generateRefreshToken, hashPassword, comparePassword } from '../utils/auth';
+import { query, transaction } from '../db';
+import { generateAccessToken, generateRefreshToken, hashPassword, comparePassword, hashToken, verifyRefreshToken, verifyAccessToken, verifyAccessTokenForRevocation } from '../utils/auth';
 import { authenticate } from '../middleware/auth';
-import bcrypt from 'bcryptjs';
+import { safeDiagnostic } from '../middleware/safeAudit';
+import { config } from '../config';
+import { createSession } from '../services/sessions';
 
 const router = Router();
+
+router.get('/capabilities', (_req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.json({ allowRegistration: config.allowRegistration, aiEnabled: config.aiEnabled,
+    sessionTimeoutMinutes: config.sessionTimeoutMinutes });
+});
 
 // Register a new doctor
 router.post('/register', async (req: Request, res: Response) => {
   try {
+    if (!config.allowRegistration) return res.status(403).json({ error: 'Self-registration is disabled; contact your administrator' });
     const { email, password, firstName, lastName } = req.body;
 
     if (!email || !password) {
@@ -23,7 +32,8 @@ router.post('/register', async (req: Request, res: Response) => {
 
     const passwordHash = await hashPassword(password);
 
-    const result = await query(
+    const response = await transaction(async client => {
+    const result = await client.query(
       `INSERT INTO users (email, password_hash, first_name, last_name, role) 
        VALUES ($1, $2, $3, $4, 'doctor') RETURNING id, email, role`,
       [email, passwordHash, firstName || '', lastName || '']
@@ -31,33 +41,12 @@ router.post('/register', async (req: Request, res: Response) => {
 
     const user = result.rows[0];
 
-    const accessToken = generateAccessToken({
-      userId: user.id,
-      email: user.email,
-      role: user.role,
+    return createSession(client, user, req);
     });
-
-    const refreshToken = generateRefreshToken({
-      userId: user.id,
-      email: user.email,
-      role: user.role,
-    });
-
-    // Store refresh token hash
-    const refreshTokenHash = await bcrypt.hash(refreshToken, 10);
-    await query(
-      `INSERT INTO sessions (user_id, refresh_token_hash, ip_address, user_agent, expires_at)
-       VALUES ($1, $2, $3, $4, NOW() + INTERVAL '7 days')`,
-      [user.id, refreshTokenHash, req.ip, req.get('user-agent')]
-    );
-
-    res.status(201).json({
-      user: { id: user.id, email: user.email, role: user.role },
-      accessToken,
-      refreshToken,
-    });
+    res.status(201).json(response);
   } catch (err) {
-    console.error('Register error:', err);
+    if ((err as { code?: string }).code === '23505') return res.status(409).json({ error: 'User already exists' });
+    safeDiagnostic(req, 'registration_failed');
     res.status(500).json({ error: 'Registration failed' });
   }
 });
@@ -71,9 +60,11 @@ router.post('/login', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Email and password required' });
     }
 
-    const result = await query('SELECT id, email, password_hash, role FROM users WHERE email = $1', [email]);
+    const result = await query('SELECT id, email, password_hash, role FROM users WHERE email = $1 AND is_active = true', [email]);
 
     if (result.rows.length === 0) {
+      // Comparable password work for unknown accounts reduces timing enumeration.
+      await comparePassword(password, '$2b$12$KIXxG7RiUfnuCxJPHbCFiuWbfwwRXjC9yWTmYeUvwRbVXTYsk8fsi');
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
@@ -84,33 +75,9 @@ router.post('/login', async (req: Request, res: Response) => {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    const accessToken = generateAccessToken({
-      userId: user.id,
-      email: user.email,
-      role: user.role,
-    });
-
-    const refreshToken = generateRefreshToken({
-      userId: user.id,
-      email: user.email,
-      role: user.role,
-    });
-
-    // Store refresh token hash
-    const refreshTokenHash = await bcrypt.hash(refreshToken, 10);
-    await query(
-      `INSERT INTO sessions (user_id, refresh_token_hash, ip_address, user_agent, expires_at)
-       VALUES ($1, $2, $3, $4, NOW() + INTERVAL '7 days')`,
-      [user.id, refreshTokenHash, req.ip, req.get('user-agent')]
-    );
-
-    res.json({
-      user: { id: user.id, email: user.email, role: user.role },
-      accessToken,
-      refreshToken,
-    });
+    res.json(await transaction(client => createSession(client, user, req)));
   } catch (err) {
-    console.error('Login error:', err);
+    safeDiagnostic(req, 'login_failed');
     res.status(500).json({ error: 'Login failed' });
   }
 });
@@ -124,11 +91,15 @@ router.post('/refresh', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Refresh token required' });
     }
 
-    const result = await query(
-      `SELECT u.id, u.email, u.role FROM sessions s
-       JOIN users u ON s.user_id = u.id
-       WHERE s.expires_at > NOW() LIMIT 1`
-    );
+    const payload = verifyRefreshToken(refreshToken);
+    if (!payload) return res.status(401).json({ error: 'Invalid or expired refresh token' });
+    const rotatedToken = generateRefreshToken(payload);
+    const result = await query(`UPDATE sessions s SET refresh_token_hash = $1, last_activity = NOW()
+      FROM users u WHERE s.session_key = $2 AND s.user_id = $3 AND u.id = s.user_id
+      AND s.refresh_token_hash = $4 AND s.expires_at > NOW() AND u.is_active = true
+      AND s.last_activity > NOW() - ($5 * INTERVAL '1 minute')
+      RETURNING u.id, u.email, u.role`,
+      [hashToken(rotatedToken), payload.sessionId, payload.userId, hashToken(refreshToken), config.sessionTimeoutMinutes]);
 
     if (result.rows.length === 0) {
       return res.status(401).json({ error: 'Invalid or expired refresh token' });
@@ -140,12 +111,42 @@ router.post('/refresh', async (req: Request, res: Response) => {
       userId: user.id,
       email: user.email,
       role: user.role,
+      sessionId: payload.sessionId,
     });
 
-    res.json({ accessToken });
+    req.user = { ...payload, email: user.email, role: user.role };
+    res.json({ accessToken, refreshToken: rotatedToken });
   } catch (err) {
-    console.error('Refresh token error:', err);
+    safeDiagnostic(req, 'refresh_failed');
     res.status(500).json({ error: 'Token refresh failed' });
+  }
+});
+
+router.post('/logout', async (req, res, next) => {
+  const deny = () => res.status(401).json({ error: 'Invalid or expired session credential' });
+  const refresh = req.body?.refreshToken ? verifyRefreshToken(req.body.refreshToken) : null;
+  if (req.body?.refreshToken && !refresh) return deny();
+  const header = req.headers.authorization;
+  const token = typeof header === 'string' && /^Bearer \S+$/i.test(header) ? header.slice(7) : '';
+  const access = token ? (refresh ? verifyAccessTokenForRevocation(token) : verifyAccessToken(token)) : null;
+  if (header !== undefined && !access) return deny();
+  if (access && refresh && (access.userId !== refresh.userId || access.sessionId !== refresh.sessionId)) return deny();
+  const payload = refresh || access;
+  if (!payload) return deny();
+  // A signed, unexpired refresh credential may ONLY revoke its own session,
+  // including after rotation. Requiring the current hash here loses logout if
+  // a concurrent refresh won first. Refresh issuance still requires that hash.
+  // UPDATE already locks the row; neither ordering can revive a revoked row.
+  try {
+  const result = await query(`UPDATE sessions s SET expires_at = NOW() FROM users u
+    WHERE s.session_key = $1 AND s.user_id = $2 AND u.id = s.user_id
+    AND u.is_active = true AND s.expires_at > NOW() RETURNING u.email, u.role`, [payload.sessionId, payload.userId]);
+  if (!result.rows.length) return deny();
+  req.user = { ...payload, email: result.rows[0].email, role: result.rows[0].role };
+  res.status(204).end();
+  } catch (err) {
+    safeDiagnostic(req, 'logout_failed');
+    next(err); // Preserve the existing application error response.
   }
 });
 
@@ -154,7 +155,7 @@ router.get('/profile', authenticate, async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.userId;
     const result = await query(
-      `SELECT id, email, first_name, last_name, specialty, license_number, phone, bio, is_active
+      `SELECT id, email, role, first_name, last_name, specialty, license_number, phone, bio, is_active
        FROM users WHERE id = $1`,
       [userId]
     );
@@ -165,7 +166,7 @@ router.get('/profile', authenticate, async (req: Request, res: Response) => {
 
     res.json({ user: result.rows[0] });
   } catch (err) {
-    console.error('Profile fetch error:', err);
+    safeDiagnostic(req, 'profile_fetch_failed');
     res.status(500).json({ error: 'Failed to fetch profile' });
   }
 });
@@ -189,7 +190,7 @@ router.put('/profile', authenticate, async (req: Request, res: Response) => {
 
     res.json({ user: result.rows[0] });
   } catch (err) {
-    console.error('Profile update error:', err);
+    safeDiagnostic(req, 'profile_update_failed');
     res.status(500).json({ error: 'Failed to update profile' });
   }
 });

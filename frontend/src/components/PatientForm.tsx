@@ -92,8 +92,7 @@ export default function PatientForm({
           medicalConditions,
         });
       } else {
-        result = await apiClient.createPatient(patientId, firstName, lastName);
-        await apiClient.updatePatient(result.data.patient.id, {
+        result = await apiClient.createPatient(patientId, firstName, lastName, {
           firstName,
           lastName,
           gender,
@@ -104,7 +103,6 @@ export default function PatientForm({
           medications,
           medicalConditions,
         });
-        result = await apiClient.getPatient(result.data.patient.id);
       }
       onCreated(result.data.patient);
     } catch (err: any) {
@@ -141,6 +139,7 @@ export default function PatientForm({
           <label style={styles.label}>Patient ID:</label>
           <input
             type="text"
+            aria-label="Patient ID"
             value={patientId}
             readOnly={!allowPatientIdEdit}
             disabled={!allowPatientIdEdit}
@@ -154,6 +153,7 @@ export default function PatientForm({
             <label style={styles.label}>First Name</label>
             <input
               type="text"
+              aria-label="First Name"
               value={firstName}
               onChange={(e) => setFirstName(e.target.value)}
               required
@@ -164,6 +164,7 @@ export default function PatientForm({
             <label style={styles.label}>Last Name</label>
             <input
               type="text"
+              aria-label="Last Name"
               value={lastName}
               onChange={(e) => setLastName(e.target.value)}
               required
@@ -177,6 +178,7 @@ export default function PatientForm({
             <label style={styles.label}>Date of Birth</label>
             <input
               type="date"
+              aria-label="Date of Birth"
               value={dob}
               onChange={(e) => setDob(e.target.value)}
               style={styles.input}
@@ -200,6 +202,7 @@ export default function PatientForm({
             <label style={styles.label}>Phone</label>
             <input
               type="tel"
+              aria-label="Phone"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               style={styles.input}
@@ -209,6 +212,7 @@ export default function PatientForm({
             <label style={styles.label}>Email</label>
             <input
               type="email"
+              aria-label="Email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               style={styles.input}
@@ -219,6 +223,7 @@ export default function PatientForm({
         <div style={styles.group}>
           <label style={styles.label}>Allergies</label>
           <textarea
+            aria-label="Allergies"
             value={allergies}
             onChange={(e) => setAllergies(e.target.value)}
             placeholder="List any allergies..."
@@ -230,6 +235,7 @@ export default function PatientForm({
         <div style={styles.group}>
           <label style={styles.label}>Medications</label>
           <textarea
+            aria-label="Medications"
             value={medications}
             onChange={(e) => setMedications(e.target.value)}
             placeholder="Current medications..."
@@ -241,6 +247,7 @@ export default function PatientForm({
         <div style={styles.group}>
           <label style={styles.label}>Medical Conditions</label>
           <textarea
+            aria-label="Medical Conditions"
             value={medicalConditions}
             onChange={(e) => setMedicalConditions(e.target.value)}
             placeholder="Relevant medical history..."

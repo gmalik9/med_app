@@ -48,7 +48,7 @@ export default function DoctorDashboard() {
         analyticsData: analyticsRes.data,
       });
     } catch (err: any) {
-      console.error('Dashboard load error:', err);
+      console.error('Dashboard load error:');
       setError('Failed to load dashboard data');
     } finally {
       setLoading(false);
@@ -274,6 +274,7 @@ export default function DoctorDashboard() {
 }
 
 const styles = {
+  button: { padding: '10px 16px', background: '#0066cc', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer' } as React.CSSProperties,
   dashboard: {
     backgroundColor: '#f5f5f5',
     padding: '24px',

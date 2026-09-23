@@ -1,31 +1,99 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { apiClient } from '../utils/apiClient';
+import { validateHistoryPage } from '../utils/pagination';
+
+// Shared read-only paging mechanics live here to keep this batch within its
+// owned files. Write submission/idempotency hooks are deliberately independent.
+export function useHistoryPage<T extends { id?: number } = any>(
+  scope: string, field: string, fetchPage: (cursor?: string) => Promise<{ data: any }>,
+) {
+  const generation = apiClient.getSessionGeneration();
+  const key = JSON.stringify([scope, generation]);
+  const empty = () => ({ key, rows: [] as T[], loading: true, error: '', nextCursor: undefined as string | undefined, retryCursor: undefined as string | undefined, hasMore: false, loaded: false });
+  const [state, setState] = useState(empty);
+  const live = useRef({ key, epoch: 0, mounted: true, busy: false });
+  const fetchRef = useRef(fetchPage);
+  fetchRef.current = fetchPage;
+  if (live.current.key !== key) {
+    live.current.key = key;
+    live.current.epoch++;
+    live.current.busy = false;
+  }
+  const load = useCallback(async (cursor?: string) => {
+    if (!live.current.mounted || live.current.key !== key || (cursor && live.current.busy)) return;
+    const epoch = ++live.current.epoch;
+    live.current.busy = true;
+    // Commit replacement/continuation only after the whole response validates.
+    // Same-scope refresh failures must not erase previously displayed records.
+    setState(old => old.key === key ? { ...old, loading: true, error: '' }
+      : { key, rows: [], loading: true, error: '', nextCursor: undefined, retryCursor: undefined, hasMore: false, loaded: false });
+    const current = () => live.current.mounted && live.current.key === key && live.current.epoch === epoch
+      && apiClient.getSessionGeneration() === generation;
+    try {
+      const { data } = await fetchRef.current(cursor);
+      if (!current()) return;
+      const page = validateHistoryPage<T>(data, field, cursor);
+      setState(old => {
+        const rows: T[] = cursor ? [...old.rows] : [];
+        const ids = new Set(rows.map(row => row.id));
+        for (const row of page.rows) {
+          if (!ids.has(row.id)) { rows.push(row); ids.add(row.id); }
+        }
+        return { key, rows, loading: false, error: '', nextCursor: page.nextCursor ?? undefined, retryCursor: undefined, hasMore: page.hasMore, loaded: true };
+      });
+    } catch {
+      if (current()) setState(old => ({ ...old, loading: false, retryCursor: cursor, error: 'Unable to load records. Please retry.' }));
+    } finally {
+      if (current()) live.current.busy = false;
+    }
+  }, [key, generation, field]);
+  useEffect(() => {
+    live.current.mounted = true;
+    void load();
+    const refresh = () => { void load(); };
+    window.addEventListener('clinical-data-updated', refresh);
+    return () => {
+      live.current.mounted = false;
+      live.current.epoch++;
+      live.current.busy = false;
+      window.removeEventListener('clinical-data-updated', refresh);
+    };
+  }, [load]);
+  const visible = state.key === key ? state : empty();
+  return {
+    ...visible,
+    reload: () => load(),
+    refreshAll: () => {
+      if (live.current.mounted && live.current.key === key && apiClient.getSessionGeneration() === generation) {
+        window.dispatchEvent(new Event('clinical-data-updated'));
+      }
+    },
+    loadMore: () => load(visible.error ? visible.retryCursor : visible.nextCursor),
+    setRows: (update: (rows: T[]) => T[]) => {
+      if (live.current.mounted && live.current.key === key && apiClient.getSessionGeneration() === generation) setState(old => ({ ...old, rows: update(old.rows) }));
+    },
+  };
+}
+
+export function HistoryPaging({ page }: { page: Pick<ReturnType<typeof useHistoryPage>, 'loading' | 'error' | 'loaded' | 'hasMore' | 'reload' | 'loadMore'> }) {
+  return <div aria-label="History pagination">
+    {page.error && <div role="alert">{page.error}</div>}
+    {page.loading && <p role="status">Loading records...</p>}
+    {page.error ? <button type="button" disabled={page.loading} onClick={page.loadMore}>Retry loading records</button>
+      : page.hasMore && <button type="button" disabled={page.loading} onClick={page.loadMore}>Load more</button>}
+    {page.loaded && !page.hasMore && !page.loading && !page.error && <p aria-live="polite">No more records.</p>}
+    <button type="button" disabled={page.loading} onClick={page.reload}>Refresh records</button>
+    <small style={{ display: 'block', marginTop: 8 }}>Live records, not a snapshot. Refresh to see new or changed records.</small>
+  </div>;
+}
 
 interface PatientHistoryProps {
   patientId: string | number;
 }
 
 export default function PatientHistory({ patientId }: PatientHistoryProps) {
-  const [notes, setNotes] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-
-  useEffect(() => {
-    loadHistory();
-  }, [patientId]);
-
-  const loadHistory = async () => {
-    setLoading(true);
-    setError('');
-    try {
-      const response = await apiClient.getNoteHistory(patientId);
-      setNotes(response.data.notes);
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to load history');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const page = useHistoryPage(`notes:${patientId}`, 'notes', cursor => apiClient.getNoteHistory(patientId, 30, cursor));
+  const { rows: notes, loading } = page;
 
   const getCodeColor = (code: string) => {
     const colors = [
@@ -57,11 +125,9 @@ export default function PatientHistory({ patientId }: PatientHistoryProps) {
     <div style={styles.card}>
       <h2 style={styles.title}>Clinical Notes History</h2>
 
-      {error && <div style={styles.error}>{error}</div>}
-
-      {loading ? (
+      {loading && notes.length === 0 ? (
         <p>Loading...</p>
-      ) : notes.length === 0 ? (
+      ) : notes.length === 0 && !page.error ? (
         <p style={styles.empty}>No notes yet</p>
       ) : (
         <div style={styles.notesList}>
@@ -93,6 +159,7 @@ export default function PatientHistory({ patientId }: PatientHistoryProps) {
           ))}
         </div>
       )}
+      <HistoryPaging page={page} />
     </div>
   );
 }

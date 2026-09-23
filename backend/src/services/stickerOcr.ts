@@ -1,12 +1,20 @@
 import sharp from 'sharp';
-import Tesseract from 'tesseract.js';
+import { createWorker } from 'tesseract.js';
 
 export interface StickerOcrResult {
   text: string;
 }
 
-export async function processStickerImage(buffer: Buffer): Promise<StickerOcrResult> {
-  const metadata = await sharp(buffer).metadata();
+let busy = false;
+const imageOptions = { limitInputPixels: 12000000, failOn: 'warning' as const };
+
+export async function prepareStickerImage(buffer: Buffer) {
+  let metadata;
+  try { metadata = await sharp(buffer, imageOptions).metadata(); }
+  catch { throw Object.assign(new Error('Invalid image'), { status: 415 }); }
+  if (!['jpeg', 'png', 'webp'].includes(metadata.format || '') || (metadata.pages || 1) > 1) {
+    throw Object.assign(new Error('Unsupported image'), { status: 415 });
+  }
   const width = metadata.width ?? 0;
   const height = metadata.height ?? 0;
 
@@ -20,12 +28,12 @@ export async function processStickerImage(buffer: Buffer): Promise<StickerOcrRes
         }
       : null;
 
-  let pipeline = sharp(buffer).rotate();
+  let pipeline = sharp(buffer, imageOptions);
   if (extractRegion) {
     pipeline = pipeline.extract(extractRegion);
   }
 
-  const processedImage = await pipeline
+  return pipeline.rotate().resize({ width: 2400, height: 2400, fit: 'inside', withoutEnlargement: true })
     .grayscale()
     .normalize()
     .linear(1.25, -(255 * 0.12))
@@ -34,11 +42,36 @@ export async function processStickerImage(buffer: Buffer): Promise<StickerOcrRes
     .png()
     .toBuffer();
 
-  const result = await Tesseract.recognize(processedImage, 'eng', {
-    logger: () => undefined,
-  });
+}
 
-  return {
-    text: result.data.text || '',
-  };
+export async function processStickerImage(buffer: Buffer): Promise<StickerOcrResult> {
+  if (busy) throw Object.assign(new Error('OCR busy'), { status: 503 });
+  busy = true;
+  let worker: Awaited<ReturnType<typeof createWorker>> | undefined;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let expired = false;
+  let work: Promise<StickerOcrResult> | undefined;
+  try {
+    work = (async () => {
+      const image = await prepareStickerImage(buffer);
+      worker = await createWorker('eng', 1, { logger: () => undefined, cacheMethod: 'none' });
+      if (expired) { await worker.terminate(); throw new Error('OCR timed out'); }
+      const result = await worker.recognize(image);
+      return { text: result.data.text || '' };
+    })();
+    return await Promise.race([work, new Promise<never>((_resolve, reject) => {
+      timer = setTimeout(() => { expired = true; reject(Object.assign(new Error('OCR timed out'), { status: 503 })); }, 25000);
+    })]);
+  } finally {
+    if (timer) clearTimeout(timer);
+    if (worker) {
+      await worker.terminate();
+      busy = false;
+    } else if (expired && work) {
+      // Keep the slot occupied until a late-initializing worker terminates.
+      void work.then(() => { busy = false; }, () => { busy = false; });
+    } else {
+      busy = false;
+    }
+  }
 }

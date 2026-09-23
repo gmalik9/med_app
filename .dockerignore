@@ -1,0 +1,16 @@
+.git
+**/node_modules
+**/dist
+**/.env
+**/.env.*
+secrets
+secrets.env
+**/*.log
+coverage
+test-results
+playwright-report
+.vscode
+.cache/vosk
+frontend/public/models/*.zip
+frontend/public/models/*.tar.gz
+frontend/public/vosk/*.worker.js

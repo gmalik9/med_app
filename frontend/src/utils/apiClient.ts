@@ -1,60 +1,26 @@
-import axios, { AxiosInstance } from 'axios';
+import axios, { AxiosInstance, AxiosResponse, CanceledError, InternalAxiosRequestConfig } from 'axios';
+import { resolveApiUrl } from './apiUrl';
 
-// Smart API URL detection
-// In Docker/Container: use the service name (http://backend:5000)
-// In Browser on Host: use localhost:5001 (the exposed port)
-// In Render/Remote: use backend service URL from environment or construct from hostname
-// Build-time env: use VITE_API_URL if provided
-function getApiUrl(): string {
-  // Priority 1: Use build-time environment variable if set
-  const buildTimeUrl = import.meta.env.VITE_API_URL;
-  if (buildTimeUrl && buildTimeUrl !== 'undefined') {
-    console.log('[API Client] Using build-time VITE_API_URL:', buildTimeUrl);
-    return buildTimeUrl;
-  }
-  
-  // Priority 2: Detect runtime environment
-  // In Node/SSR context (where we can't access window), use docker service name
-  if (typeof window === 'undefined') {
-    console.log('[API Client] Using Docker service name (Node context)');
-    return 'http://backend:5000';
-  }
-  
-  // Priority 3: Browser running on host - use relative or localhost
-  // Check if we're accessing from localhost or 127.0.0.1
-  const hostname = window.location.hostname;
-  const protocol = window.location.protocol;
-  
-  if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '0.0.0.0') {
-    // Browser accessing from localhost - API should also be on localhost
-    const apiUrl = `${protocol}//localhost:5001`;
-    console.log('[API Client] Using localhost URL for browser:', apiUrl);
-    return apiUrl;
-  }
-  
-  // Priority 4: For Render/remote deployment - construct backend URL
-  // Replace 'frontend' with 'backend' in the hostname
-  if (hostname.includes('onrender.com') || hostname.includes('render.com')) {
-    const backendHostname = hostname.replace('frontend', 'backend');
-    const apiUrl = `${protocol}//` + backendHostname;
-    console.log('[API Client] Using Render backend URL:', apiUrl);
-    return apiUrl;
-  }
-  
-  // Priority 5: Generic remote access - assume same domain, use /api proxy
-  console.log('[API Client] Using same-origin API for remote access');
-  return '/api';
+// Explicit backend origin, otherwise same-origin reverse proxy.
+const API_URL = resolveApiUrl(import.meta.env.VITE_API_URL);
+
+export interface AuthCapabilities {
+  allowRegistration: boolean;
+  aiEnabled: boolean;
+  sessionTimeoutMinutes: number;
 }
-
-const API_URL = getApiUrl();
+type Tokens = { accessToken: string; refreshToken: string };
+type SessionRequest = InternalAxiosRequestConfig & { _generation?: number; _retried?: boolean; _accessToken?: string | null };
+const detached = (url = '') => /\/auth\/(?:logout|capabilities)$/.test(url);
+const publicAuth = (url = '') => /\/auth\/(?:login|register|refresh|logout|capabilities)$/.test(url);
 
 class ApiClient {
   private client: AxiosInstance;
   private accessToken: string | null = null;
+  private generation = 0;
+  private refreshing: { generation: number; promise: Promise<AxiosResponse<Tokens>> } | null = null;
 
   constructor() {
-    console.log('[API Client] Initializing with API_URL:', API_URL);
-    
     this.client = axios.create({
       baseURL: API_URL,
       headers: {
@@ -63,36 +29,83 @@ class ApiClient {
       timeout: 90000, // 90 second timeout for Render cold starts
     });
 
-    // Load token from localStorage
-    this.accessToken = localStorage.getItem('accessToken');
+    // Remove legacy persistent credentials. Tab-scoped storage is still readable
+    // by JavaScript; an HttpOnly-cookie/BFF migration remains a production task.
+    for (const key of ['accessToken', 'refreshToken', 'user']) localStorage.removeItem(key);
+    this.accessToken = sessionStorage.getItem('accessToken');
 
-    // Add authorization header
+    // Synchronous capture is essential: an account switch before Axios's first
+    // microtask must not relabel an already-created clinical request.
     this.client.interceptors.request.use((config) => {
-      if (this.accessToken) {
-        config.headers.Authorization = `Bearer ${this.accessToken}`;
+      const request = config as SessionRequest;
+      if (detached(request.url)) return request; // Preserve captured logout headers.
+      request._generation ??= this.generation;
+      if (request._generation !== this.generation) throw new CanceledError('Session changed');
+      if (!publicAuth(request.url)) {
+        request._accessToken = this.accessToken;
+        if (this.accessToken) request.headers.Authorization = `Bearer ${this.accessToken}`;
+        else request.headers.delete('Authorization');
       }
-      return config;
-    });
+      return request;
+    }, error => { throw error; }, { synchronous: true });
 
-    // Add error interceptor for better debugging
     this.client.interceptors.response.use(
-      (response) => response,
-      (error) => {
-        console.error('[API Error]', {
-          message: error.message,
-          status: error.response?.status,
-          data: error.response?.data,
-          url: error.config?.url,
-          baseURL: error.config?.baseURL,
-        });
+      response => {
+        const request = response.config as SessionRequest;
+        if (!detached(request.url) && request._generation !== this.generation) throw new CanceledError('Session changed');
+        return response;
+      },
+      async (error) => {
+        const original = error.config as SessionRequest | undefined;
+        if (!original || detached(original.url)) return Promise.reject(error);
+        if (original._generation !== this.generation) throw new CanceledError('Session changed');
+        if (error.response?.status === 401 && !publicAuth(original.url)) {
+          const generation = this.generation;
+          const refresh = sessionStorage.getItem('refreshToken');
+          if (!original._retried && refresh) {
+            original._retried = true;
+            // Another request may already have refreshed this same generation.
+            if (original._accessToken === this.accessToken) await this.refreshToken(refresh);
+            if (generation !== this.generation) throw new CanceledError('Session changed');
+            return this.client(original);
+          }
+          // A bounded retry may itself finish after another rotation. Its old
+          // credential's rejection says nothing about the newer token pair.
+          if (original._accessToken === this.accessToken) this.expireSession(generation);
+        }
         return Promise.reject(error);
       }
     );
   }
 
   setAccessToken(token: string) {
+    // Compatibility for existing callers: setting a new access credential starts
+    // a generation. Internal refresh uses the atomic pair setter instead.
+    if (token !== this.accessToken) this.generation++;
     this.accessToken = token;
-    localStorage.setItem('accessToken', token);
+    sessionStorage.setItem('accessToken', token);
+  }
+
+  getSessionGeneration() { return this.generation; }
+
+  beginSession() { this.clearToken(); return this.generation; }
+
+  setSessionTokens(accessToken: string, refreshToken: string, generation: number) {
+    if (generation !== this.generation) return false;
+    if (typeof accessToken !== 'string' || !accessToken || typeof refreshToken !== 'string' || !refreshToken) {
+      throw new Error('Invalid session response');
+    }
+    // No await/callback between the generation check and the pair commit.
+    sessionStorage.setItem('accessToken', accessToken);
+    sessionStorage.setItem('refreshToken', refreshToken);
+    this.accessToken = accessToken;
+    return true;
+  }
+
+  private expireSession(generation: number) {
+    if (generation !== this.generation) return;
+    this.clearToken();
+    window.dispatchEvent(new CustomEvent('session-expired', { detail: { generation: this.generation } }));
   }
 
   getAccessToken(): string | null {
@@ -100,11 +113,17 @@ class ApiClient {
   }
 
   clearToken() {
+    this.generation++;
+    this.refreshing = null;
     this.accessToken = null;
-    localStorage.removeItem('accessToken');
+    for (const key of ['accessToken', 'refreshToken', 'user']) sessionStorage.removeItem(key);
   }
 
   // Auth endpoints
+  getCapabilities() {
+    return this.client.get<AuthCapabilities>('/api/auth/capabilities');
+  }
+
   register(email: string, password: string, firstName: string, lastName: string) {
     return this.client.post('/api/auth/register', {
       email,
@@ -118,8 +137,30 @@ class ApiClient {
     return this.client.post('/api/auth/login', { email, password });
   }
 
-  refreshToken(refreshToken: string) {
-    return this.client.post('/api/auth/refresh', { refreshToken });
+  async refreshToken(refreshToken: string): Promise<AxiosResponse<Tokens>> {
+    const generation = this.generation;
+    if (refreshToken !== sessionStorage.getItem('refreshToken')) throw new CanceledError('Session changed');
+    if (this.refreshing?.generation === generation) return this.refreshing.promise;
+    const flight = { generation, promise: this.client.post<Tokens>('/api/auth/refresh', { refreshToken }).then(response => {
+      if (generation !== this.generation || sessionStorage.getItem('refreshToken') !== refreshToken) throw new CanceledError('Session changed');
+      this.setSessionTokens(response.data.accessToken, response.data.refreshToken, generation);
+      return response;
+    }).catch(error => {
+      // Network errors, rate limits and service outages do not prove revocation.
+      if (error.response?.status === 401) this.expireSession(generation);
+      throw error;
+    }).finally(() => { if (this.refreshing === flight) this.refreshing = null; }) };
+    this.refreshing = flight;
+    return flight.promise;
+  }
+
+  logout() {
+    const token = this.accessToken;
+    const refreshToken = sessionStorage.getItem('refreshToken');
+    this.clearToken();
+    return this.client.post('/api/auth/logout', refreshToken ? { refreshToken } : {}, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
   }
 
   getDoctorProfile() {
@@ -135,11 +176,12 @@ class ApiClient {
     return this.client.get('/api/patients/search', { params: { patientId } });
   }
 
-  createPatient(patientId: string, firstName: string, lastName: string) {
+  createPatient(patientId: string, firstName: string, lastName: string, details: Record<string, unknown> = {}) {
     return this.client.post('/api/patients/create', {
       patientId,
       firstName,
       lastName,
+      ...details,
     });
   }
 
@@ -147,8 +189,8 @@ class ApiClient {
     return this.client.get(`/api/patients/${id}`);
   }
 
-  getPatients() {
-    return this.client.get('/api/patients/');
+  getPatients(limit = 50, offset?: number, cursor?: string) {
+    return this.client.get('/api/patients/', { params: { limit, offset, cursor } });
   }
 
   updatePatientStatus(id: string | number, is_active: boolean) {
@@ -175,34 +217,38 @@ class ApiClient {
     return this.client.get(`/api/notes/patient/${patientId}`, { params: { date } });
   }
 
-  saveNote(patientId: string | number, noteText: string, date?: string, medicalCodes: string[] = []) {
-    return this.client.post(`/api/notes/patient/${patientId}`, { noteText, date, medicalCodes });
+  saveNote(patientId: string | number, noteText: string, date?: string, medicalCodes: string[] = [], expectedRevision = 0) {
+    return this.client.post(`/api/notes/patient/${patientId}`, { noteText, date, medicalCodes, expectedRevision });
   }
 
-  getNoteHistory(patientId: string | number, limit?: number) {
-    return this.client.get(`/api/notes/patient/${patientId}/history`, { params: { limit } });
+  getNoteHistory(patientId: string | number, limit?: number, cursor?: string) {
+    return this.client.get(`/api/notes/patient/${patientId}/history`, { params: { limit, cursor } });
   }
 
   // Phase 2: Vital Signs
-  recordVitals(patientId: string | number, vitals: any) {
-    return this.client.post(`/api/vitals/patient/${patientId}`, vitals);
+  recordVitals(patientId: string | number, vitals: any, requestKey?: string) {
+    return this.client.post(`/api/vitals/patient/${patientId}`, vitals, {
+      headers: requestKey ? { 'Idempotency-Key': requestKey } : {},
+    });
   }
 
   getLatestVitals(patientId: string | number) {
     return this.client.get(`/api/vitals/patient/${patientId}/latest`);
   }
 
-  getVitalsHistory(patientId: number, limit?: number) {
-    return this.client.get(`/api/vitals/patient/${patientId}/history`, { params: { limit } });
+  getVitalsHistory(patientId: string | number, limit?: number, cursor?: string) {
+    return this.client.get(`/api/vitals/patient/${patientId}/history`, { params: { limit, cursor } });
   }
 
   // Phase 2: Appointments
-  createAppointment(patientId: number, appointmentDate: string, appointmentType: string, reason: string) {
+  createAppointment(patientId: string | number, appointmentDate: string, appointmentType: string, reason: string, requestKey?: string) {
     return this.client.post('/api/appointments/create', {
-      patientId,
+      patientId: String(patientId),
       appointmentDate,
       appointmentType,
       reason,
+    }, {
+      headers: requestKey ? { 'Idempotency-Key': requestKey } : {},
     });
   }
 
@@ -210,8 +256,8 @@ class ApiClient {
     return this.client.get('/api/appointments/upcoming');
   }
 
-  getAppointmentHistory(patientId: number) {
-    return this.client.get(`/api/appointments/patient/${patientId}/history`);
+  getAppointmentHistory(patientId: string | number, limit?: number, cursor?: string) {
+    return this.client.get(`/api/appointments/patient/${patientId}/history`, { params: { limit, cursor } });
   }
 
   updateAppointmentStatus(appointmentId: number, status: string) {
@@ -219,12 +265,14 @@ class ApiClient {
   }
 
   // Phase 2: Visit History
-  createVisit(patientId: number, visitData: any) {
-    return this.client.post('/api/visits/create', { patientId, ...visitData });
+  createVisit(patientId: string | number, visitData: any, requestKey?: string) {
+    return this.client.post('/api/visits/create', { ...visitData, patientId: String(patientId) }, {
+      headers: requestKey ? { 'Idempotency-Key': requestKey } : {},
+    });
   }
 
-  getVisitHistory(patientId: number, limit?: number) {
-    return this.client.get(`/api/visits/patient/${patientId}`, { params: { limit } });
+  getVisitHistory(patientId: string | number, limit?: number, cursor?: string, filter: 'all' | 'upcoming' = 'all') {
+    return this.client.get(`/api/visits/patient/${patientId}`, { params: { limit, cursor, filter } });
   }
 
   getTodayVisits() {
@@ -249,7 +297,7 @@ class ApiClient {
     return this.client.get('/api/analytics/dashboard');
   }
 
-  getPatientTrends(patientId: number) {
+  getPatientTrends(patientId: string | number) {
     return this.client.get(`/api/analytics/patient/${patientId}/trends`);
   }
 

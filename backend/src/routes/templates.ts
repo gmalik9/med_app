@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { query } from '../db';
 import { authenticate } from '../middleware/auth';
+import { safeDiagnostic } from '../middleware/safeAudit';
 
 const router = Router();
 
@@ -22,7 +23,7 @@ router.post('/create', authenticate, async (req: Request, res: Response) => {
 
     res.status(201).json({ template: result.rows[0] });
   } catch (err) {
-    console.error('Create template error:', err);
+    safeDiagnostic(req, 'template_write_failed');
     res.status(500).json({ error: 'Failed to create template' });
   }
 });
@@ -32,7 +33,7 @@ router.get('/list', authenticate, async (req: Request, res: Response) => {
   try {
     const result = await query(
       `SELECT * FROM note_templates 
-       WHERE is_public = true OR creator_id = $1 OR is_active = true
+      WHERE (is_public = true OR creator_id = $1) AND is_active = true
        ORDER BY template_category, template_name
        LIMIT 50`,
       [req.user?.userId]
@@ -40,7 +41,7 @@ router.get('/list', authenticate, async (req: Request, res: Response) => {
 
     res.json({ templates: result.rows });
   } catch (err) {
-    console.error('Get templates error:', err);
+    safeDiagnostic(req, 'templates_read_failed');
     res.status(500).json({ error: 'Failed to fetch templates' });
   }
 });
@@ -53,13 +54,13 @@ router.get('/category/:category', authenticate, async (req: Request, res: Respon
     const result = await query(
       `SELECT * FROM note_templates 
        WHERE template_category = $1 AND (is_public = true OR creator_id = $2) AND is_active = true
-       ORDER BY template_name`,
+      ORDER BY template_name LIMIT 100`,
       [category, req.user?.userId]
     );
 
     res.json({ templates: result.rows });
   } catch (err) {
-    console.error('Get templates by category error:', err);
+    safeDiagnostic(req, 'templates_category_failed');
     res.status(500).json({ error: 'Failed to fetch templates' });
   }
 });

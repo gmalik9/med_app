@@ -53,7 +53,9 @@ function toIsoDate(value: string | null): string | null {
   }
 
   const [, month, day, year] = match;
-  return `${year}-${month}-${day}`;
+  const iso = `${year}-${month}-${day}`;
+  const date = new Date(`${iso}T00:00:00Z`);
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === iso ? iso : null;
 }
 
 function parseName(lines: string[]): Pick<ParsedStickerData, 'rawName' | 'firstName' | 'lastName' | 'gender'> {
@@ -108,7 +110,7 @@ export function parseStickerText(text: string): ParsedStickerData {
   const nameData = parseName(lines);
 
   const dob = toIsoDate(extract(/DOB[:\s]*([0-9]{2}\/[0-9]{2}\/[0-9]{4})/i, flattened));
-  const mrn = extract(/M[#:]?\s*([0-9]{6,})/i, flattened);
+  const mrn = extract(/\b(?:MRN|M)[#:\s]*([0-9]{6,})\b/i, flattened);
   const account = extractAccount(flattened);
   const dateOfService = toIsoDate(extract(/DOS[:\s]*([0-9]{2}\/[0-9]{2}\/[0-9]{4})/i, flattened));
   const location = extract(/LOC[:\s]*([A-Z]{2,10})/i, flattened);

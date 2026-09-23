@@ -1,4 +1,5 @@
 import React from 'react';
+import { isCancel } from 'axios';
 import { useAuth } from '../hooks/useAuth';
 
 export function LoginPage() {
@@ -10,28 +11,33 @@ export function LoginPage() {
   const [isRegistering, setIsRegistering] = React.useState(false);
   const [firstName, setFirstName] = React.useState('');
   const [lastName, setLastName] = React.useState('');
-  const { login, register } = useAuth();
+  const { login, register, capabilities } = useAuth();
+  const attempt = React.useRef(0);
+  React.useEffect(() => () => { attempt.current++; }, []);
+  React.useEffect(() => { if (!capabilities?.allowRegistration) setIsRegistering(false); }, [capabilities]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const currentAttempt = ++attempt.current;
     setError('');
     setLoading(true);
 
     try {
       if (isRegistering) {
+        if (!capabilities?.allowRegistration) throw new Error('Self-registration is unavailable; contact your administrator');
         await register(email, password, firstName, lastName);
       } else {
         await login(email, password);
       }
     } catch (err: any) {
+      if (currentAttempt !== attempt.current || isCancel(err)) return;
       const errorMsg = err.response?.data?.error || 
                       err.response?.data?.message ||
                       err.message || 
                       'An error occurred';
-      console.error('[LoginPage] Error:', errorMsg, err);
       setError(errorMsg);
     } finally {
-      setLoading(false);
+      if (currentAttempt === attempt.current) setLoading(false);
     }
   };
 
@@ -98,7 +104,9 @@ export function LoginPage() {
           </button>
         </form>
 
-        <button
+        {capabilities?.allowRegistration && <button
+          type="button"
+          disabled={loading}
           onClick={() => {
             setIsRegistering(!isRegistering);
             setError('');
@@ -106,7 +114,8 @@ export function LoginPage() {
           style={styles.toggleButton}
         >
           {isRegistering ? 'Already have an account? Login' : "Don't have an account? Register"}
-        </button>
+        </button>}
+        {capabilities && !capabilities.allowRegistration && <p>Self-registration is disabled. Contact your administrator for access.</p>}
       </div>
     </div>
   );

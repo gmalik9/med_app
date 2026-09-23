@@ -1,0 +1,14 @@
+-- REVIEW-ONLY psql template. NOT an application/startup hook. ON_ERROR_STOP required.
+-- DBA supplies unique, NEW role names and a NEW dedicated schema:
+--   app_schema, migration_role, runtime_role (psql identifier variables).
+-- No IF NOT EXISTS: fail rather than modify/adopt any existing role or schema.
+-- Both roles deliberately NOLOGIN. The approved identity system/DBA provisions
+-- separate login principals and role membership; never grant migration membership
+-- to a runtime principal. No passwords belong in this template/repository.
+BEGIN;
+CREATE ROLE :"migration_role" NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS;
+CREATE ROLE :"runtime_role" NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS;
+CREATE SCHEMA :"app_schema" AUTHORIZATION :"migration_role";
+REVOKE ALL ON SCHEMA :"app_schema" FROM PUBLIC;
+GRANT USAGE ON SCHEMA :"app_schema" TO :"runtime_role";
+COMMIT;

@@ -1,0 +1,106 @@
+name: Security release gates
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: '21 6 * * 1'
+permissions:
+  contents: read
+concurrency:
+  group: security-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  history-secrets:
+    name: Full-history redacted secrets
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Scan all fetched Git history; never upload raw findings
+        # Verified public OCI index digest for v8.30.1. No credentials or repository writes.
+        run: >-
+          docker run --rm --read-only --cap-drop=ALL --security-opt=no-new-privileges
+          --network=none --tmpfs /tmp:rw,noexec,nosuid,size=64m
+          -e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory -e GIT_CONFIG_VALUE_0=/repo
+          -v "$GITHUB_WORKSPACE:/repo:ro"
+          ghcr.io/gitleaks/gitleaks:v8.30.1@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f
+          git /repo --log-opts=--all --redact=100 --no-banner --exit-code=1
+
+  codeql:
+    name: CodeQL JavaScript TypeScript
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: github/codeql-action/init@3ea06614dafe36dec890db3446326e0d40ce53d4 # v3, peeled annotated tag
+        with:
+          languages: javascript-typescript
+          build-mode: none
+          queries: security-extended
+      - uses: github/codeql-action/analyze@3ea06614dafe36dec890db3446326e0d40ce53d4 # v3
+        with:
+          category: /language:javascript-typescript
+
+  images:
+    name: Image scan / ${{ matrix.workspace }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        workspace: [backend, frontend]
+    env:
+      WORKSPACE: ${{ matrix.workspace }}
+      TRIVY_IMAGE: aquasec/trivy:0.74.0@sha256:62b1e65e8869bc4b4c6aa4fa2b21595256c7c2f6018a9d9ad61caf87187c1969
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Build synthetic application image, without production secrets
+        run: |
+          docker build --pull -f "$WORKSPACE/Dockerfile" -t "medapp-scan:$WORKSPACE" .
+          mkdir -p "$RUNNER_TEMP/image-scan"
+          docker save "medapp-scan:$WORKSPACE" -o "$RUNNER_TEMP/image-scan/image.tar"
+      - name: Generate image SBOM, including OS/native and language packages
+        id: sbom
+        run: >-
+          docker run --rm --cap-drop=ALL --security-opt=no-new-privileges
+          -v "$RUNNER_TEMP/image-scan:/scan" "$TRIVY_IMAGE"
+          image --input /scan/image.tar --format cyclonedx --output /scan/image.cdx.json
+      - name: Fail on high or critical image vulnerabilities (including unfixed)
+        run: >-
+          docker run --rm --cap-drop=ALL --security-opt=no-new-privileges
+          -v "$RUNNER_TEMP/image-scan:/scan:ro" "$TRIVY_IMAGE"
+          image --input /scan/image.tar --scanners vuln --severity HIGH,CRITICAL --exit-code 1 --no-progress
+      - name: Retain SBOM only; never upload image archives, environment files or clinical data
+        if: always() && steps.sbom.outcome == 'success'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sbom-${{ matrix.workspace }}
+          path: ${{ runner.temp }}/image-scan/image.cdx.json
+          if-no-files-found: error
+          retention-days: 7
+
+  security-required:
+    name: Security required
+    if: always()
+    needs: [history-secrets, codeql, images]
+    runs-on: ubuntu-24.04
+    permissions: {}
+    steps:
+      - name: Refuse failed or skipped security jobs
+        env:
+          HISTORY: ${{ needs.history-secrets.result }}
+          SAST: ${{ needs.codeql.result }}
+          IMAGES: ${{ needs.images.result }}
+        run: test "$HISTORY" = success && test "$SAST" = success && test "$IMAGES" = success

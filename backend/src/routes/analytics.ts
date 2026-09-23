@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { query } from '../db';
 import { authenticate } from '../middleware/auth';
+import { safeDiagnostic } from '../middleware/safeAudit';
 
 const router = Router();
 
@@ -54,7 +55,7 @@ router.get('/dashboard', authenticate, async (req: Request, res: Response) => {
       recentActivity: recentActivityResult.rows
     });
   } catch (err) {
-    console.error('Get analytics error:', err);
+    safeDiagnostic(req, 'analytics_read_failed');
     res.status(500).json({ error: 'Failed to fetch analytics' });
   }
 });
@@ -89,7 +90,7 @@ router.get('/patient/:patientId/trends', authenticate, async (req: Request, res:
       }
     });
   } catch (err) {
-    console.error('Get patient trends error:', err);
+    safeDiagnostic(req, 'patient_trends_failed');
     res.status(500).json({ error: 'Failed to fetch patient trends' });
   }
 });
@@ -107,7 +108,7 @@ router.post('/event', authenticate, async (req: Request, res: Response) => {
 
     res.json({ success: true });
   } catch (err) {
-    console.error('Log analytics error:', err);
+    safeDiagnostic(req, 'analytics_write_failed');
     res.status(500).json({ error: 'Failed to log event' });
   }
 });

@@ -1,0 +1,15 @@
+-- REVIEW-ONLY, DBA APPROVAL REQUIRED. NOT applied by tests or application code.
+-- PostgreSQL privileges are additive: revoking from a runtime role does not
+-- remove privileges inherited from PUBLIC/other roles. On a DEDICATED database,
+-- review all legitimate users before applying these database-wide changes.
+-- app_database is the psql identifier variable, not a URL/password.
+-- Existing workloads relying on TEMP or public CREATE may break; schedule and
+-- approve separately. Never apply this blindly to a shared/provider database.
+BEGIN;
+REVOKE CREATE, TEMPORARY ON DATABASE :"app_database" FROM PUBLIC;
+REVOKE CREATE ON SCHEMA public FROM PUBLIC;
+COMMIT;
+-- Also inspect/revoke unintended direct or inherited grants on runtime LOGIN
+-- principals and all other writable schemas. The runtime must not own objects,
+-- hold migration/admin membership, or execute unsafe SECURITY DEFINER functions.
+-- Without this boundary, app-schema DDL is denied but TEMP table DDL may remain.

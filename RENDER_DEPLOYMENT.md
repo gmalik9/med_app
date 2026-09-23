@@ -1,230 +1,95 @@
-# Render.com Deployment Guide
+# Render deployment: engineering prerequisites and current configuration
 
-This guide provides step-by-step instructions to deploy the Medical Notes App to Render.com.
-
-## Prerequisites
-
-- GitHub account with this repository pushed
-- Render.com account (free tier available at https://render.com)
-- Node.js 18+ (for local testing)
+> Do not deploy real ePHI until the unresolved controls in [QUALITY_AUDIT.md](QUALITY_AUDIT.md) are approved. This repository does not establish HIPAA compliance or eligibility of a particular Render/Google service or plan. Confirm the exact hosting/database/logging vendors, regions, contracts/BAAs and operational controls with qualified reviewers.
 
 ## Architecture
 
-The app deploys as:
-- **PostgreSQL Database** - Managed PostgreSQL on Render
-- **Backend** - Node.js/Express on Render Web Service
-- **Frontend** - React/Vite on Render Static Site (or as part of backend)
+React/Vite static frontend → HTTPS Express API → PostgreSQL. Optional OCR executes on the API host. External Gemini note formatting is disabled by default. There is no managed queue, durable external audit sink, backup scheduler or tenant/care-team isolation in this repository.
 
-## Deployment Steps
+## Build and start
 
-### Step 1: Push Repository to GitHub
+Use the repository root and Node 22.12+ for both services; install using the **root** lockfile.
 
-```bash
-cd /path/to/med_app
-git add .
-git commit -m "Prepare for render deployment"
-git push origin main
-```
+| Service | Build | Start / publish |
+|---|---|---|
+| Backend web service | `npm ci && npm run build --workspace=backend` | `npm start --workspace=backend` |
+| Frontend static site | `npm ci && npm run build --workspace=frontend` | Publish `frontend/dist` |
 
-### Step 2: Create PostgreSQL Database on Render
+Set `HOST=0.0.0.0` for the backend and use the platform-provided port. Use `/ready` for traffic readiness and `/health` for liveness. A successful static build is not a functional test.
 
-1. Log in to [Render Dashboard](https://dashboard.render.com)
-2. Click **New +** → **PostgreSQL**
-3. Configure:
-   - **Name**: `med-app-db`
-   - **Database**: `med_app_db`
-   - **User**: `medapp`
-   - **Region**: Choose closest to your users
-   - **Plan**: Free (for development) or Paid (for production)
-4. Click **Create Database**
-5. Copy the **Internal Database URL** (starts with `postgres://`) - you'll need this for the backend
+## Backend environment
 
-### Step 3: Deploy Backend Service
+- `NODE_ENV=production`.
+- `DATABASE_URL`: approved managed PostgreSQL connection with certificate-verified TLS. An internal URL alone is not proof of encryption. Never disable certificate verification to make a connection succeed.
+- `JWT_SECRET` and `JWT_REFRESH_SECRET`: independent random secrets, each at least 32 characters, provisioned in the platform secret manager. No development defaults.
+- `ALLOWED_ORIGINS`: the **exact HTTPS frontend origin**; comma-separate multiple known origins. Do not use regex/wildcard patterns or duplicate the variable.
+- `ALLOW_SELF_REGISTRATION=false`; establish an approved account-provisioning process before use. There is no administrative enrollment UI or IdP integration yet.
+- `SEED_DATABASE=false`. Production startup rejects seeding. **The public `/api/seed` endpoint has been removed.** Do not use the demo account to verify production.
+- `ENABLE_EXTERNAL_AI=false`; do not provide a Gemini key until the exact provider/product and permitted PHI flow are approved. Approval is not established by an environment flag.
+- `SESSION_TIMEOUT_MINUTES=15`; `DB_POOL_MAX=10` initially, subject to measured connection budget.
+- `TRUST_PROXY_HOPS`: set only after verifying Render's actual proxy topology, forwarded-header handling and direct ingress restrictions. A guessed value can undermine rate limits.
 
-1. Click **New +** → **Web Service**
-2. Select your GitHub repository
-3. Configure:
-   - **Name**: `med-app-backend`
-   - **Environment**: `Node`
-   - **Build Command**: 
-     ```
-     cd backend && npm install && npm run build
-     ```
-   - **Start Command**: 
-     ```
-     cd backend && npm run start
-     ```
-   - **Plan**: Free or Paid
+See [OPERATIONS.md](OPERATIONS.md) for complete variable semantics and rollout requirements.
 
-4. **Add Environment Variables** (click **Add Environment Variable**):
-   ```
-   PORT=5000
-   NODE_ENV=production
-   DATABASE_URL=<paste the Internal Database URL from Step 2>
-   JWT_SECRET=<generate a secure random string>
-   JWT_REFRESH_SECRET=<generate another secure random string>
-   ALLOWED_ORIGINS=https://med-app-frontend.onrender.com
-   ALLOWED_ORIGINS=https://med-app-frontend\..*\.onrender\.com
-   SESSION_TIMEOUT_MINUTES=30
-   SEED_DATABASE=false
-   ```
+## Static frontend configuration
 
-5. Click **Create Web Service**
-6. Wait for deployment to complete
-7. Copy the service URL (e.g., `https://med-app-backend.onrender.com`)
+Set `VITE_API_URL` to the exact HTTPS API **origin**, without `/api`. It is embedded at build time. No backend secrets belong in `VITE_*` variables. If using a same-origin reverse proxy instead, leave the setting unset and explicitly route `/api` to the backend. Hostnames are no longer guessed.
 
-### Step 4: Deploy Frontend
+Configure the static host's response headers: CSP restricted to the application and approved API origin, `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, framing prohibition and an appropriate HTTPS/HSTS policy. The repository nginx configuration applies to the Docker frontend, **not automatically to Render Static Sites**. Verify actual headers after deployment.
 
-Option A: Deploy as Static Site (recommended for simple frontend)
+## Database initialization and release
 
-1. Click **New +** → **Static Site**
-2. Select your GitHub repository
-3. Configure:
-   - **Name**: `med-app-frontend`
-   - **Build Command**: 
-     ```
-     cd frontend && npm install && npm run build
-     ```
-   - **Publish Directory**: `frontend/dist`
-   - **Plan**: Free
+**Current integration supplement, 2026-09-20:** production startup performs a
+read-only schema check, **not automatic initialization or migration**. It refuses
+to listen unless exact versions **[1, 2, 3]**, required tables/columns and session/
+actor+operation+key unique indexes are ready. A successful build is not a migration.
 
-4. **Add Environment Variable**:
-   ```
-   VITE_API_URL=https://med-app-backend.onrender.com
-   ```
+Use a separately approved **predeploy migration job** from the repository root
+with the built backend and migration principal; do not give replicas DDL credentials.
+The approved environment must inject `DATABASE_URL` with verified TLS and intended
+schema/search_path. Do not paste production credentials into commands or this repo.
 
-5. Click **Create Static Site**
-6. Wait for deployment to complete
-7. Your app will be available at the provided Render URL
+| Stage | Command (operator forms, not executed against Render) |
+| --- | --- |
+| Read-only preflight | `NODE_ENV=production npm run db:preflight -- --approved-production` |
+| Explicit approved predeploy migration | `RELEASE_MIGRATION_APPROVED=true NODE_ENV=production npm run db:migrate -- --approved-production --confirm-migration` |
+| Read-only schema verification, again after switching to runtime principal | `NODE_ENV=production npm run db:check -- --approved-production` |
+| Normal start with runtime principal only | `npm start --workspace=backend` with `NODE_ENV=production` |
 
-Option B: Deploy Frontend with Backend (if you prefer single service)
+Set `RELEASE_MIGRATION_APPROVED=true` only on the migration job, not on the service.
+Check/preflight require production approval flag but not that variable; migration
+requires both flags and the exact environment value. Flags are acknowledgements,
+not approval substitutes. If the selected platform plan lacks a suitable separately
+controlled predeploy job, stop and arrange an approved release process; do not
+append migrations to every replica's start command or switch to development mode.
+No Render account/plan capability was verified in this pass.
 
-See the alternative deployment in Step 5 below.
+Root scripts forward to backend compiled output under its dist/db directory;
+`:source` equivalents use ts-node and are for installations with development tools,
+not the production runtime image. See [complete command/layout and exit semantics](OPERATIONS.md#current-predeploy-cli-contract--2026-09-20).
+Preflight exit 2 blocks, exit 3 requires review, and migration/schema failure exits 1.
+Test both baseline and populated v2 upgrades on an approved clone. Initializer and
+migrations are separate advisory-locked transactions; ALTER/non-concurrent index
+operations can block. A v2 actor+operation+key collision across patients aborts v3
+with aggregate-only diagnostics and preserves records. Pause keyed creation and
+obtain human reconciliation; **never delete records, rewrite keys automatically,
+forge version markers or reset the database to make deployment pass**.
 
-### Step 5: Initialize Database
+Deploy frontend and backend together and require re-login. Retain v2/v3 ledger,
+uniqueness and audit evidence through rollback; use compatible secure code or an
+approved forward-fix/recovery plan. Old vulnerable authentication code is not a
+safe rollback target. All Q1–Q7 approvals remain pending; see the
+[overall ledger](docs/verification/IMPLEMENTATION_STATUS.md). Application container
+pins and public registry proof are in [Track I](docs/verification/track-i-integration.md).
 
-Once backend is deployed:
+Back up to an approved encrypted location and restore into a separate non-production database before release. Assign retention, RPO/RTO and recovery owners. The successful synthetic restore in the audit is not evidence of configured Render production backups.
 
-1. Open backend service logs in Render dashboard
-2. Look for "Database initialized" message
-3. If you need to seed dummy data, make a request:
-   ```bash
-   curl -X POST https://med-app-backend.onrender.com/api/seed
-   ```
+## Verification checklist
 
-### Step 6: Verify Deployment
+1. On Node 22.12+ (22 line), run root `npm ci` and the required `npm run verify:release` with the guarded synthetic `TEST_DATABASE_URL` from [SETUP.md](SETUP.md). Missing/unapproved test URLs fail; normal `npm test` excludes database integration and is not release evidence. See [track A evidence](docs/verification/track-a-release.md) for observed results and unexecuted hosted checks.
+2. Verify HTTPS, database TLS, storage/backup encryption, private networking and least-privilege DB credentials in the actual environment.
+3. Verify valid login, arbitrary/expired refresh rejection, logout revocation and denied cross-user private-template/appointment access using approved synthetic accounts.
+4. Verify note revision conflicts, complete patient creation, audit metadata, readiness on DB failure, and alert routing.
+5. Review the remaining shared-clinic PHI access model, browser token storage, asynchronous read-audit durability, vendor agreements and organizational policies before authorizing any real-data use.
 
-1. Visit your frontend URL
-2. Log in with test credentials:
-   - Email: `doctor@hospital.com`
-   - Password: `SecurePass123!`
-3. Test creating a patient and note
-4. Check backend logs for any errors
-
-## Automated Deployment Setup
-
-### Enable Auto-Deploy from Git
-
-1. In Render Dashboard → Service Settings
-2. Look for **GitHub** section
-3. Enable **Auto-Deploy** for `main` branch
-4. Future git pushes will automatically redeploy
-
-## Environment Variables
-
-| Variable | Development | Production |
-|----------|-------------|-----------|
-| PORT | 5000 | 5000 |
-| NODE_ENV | development | production |
-| DATABASE_URL | local postgres | Render postgres |
-| JWT_SECRET | dev_jwt_secret_change_in_production_12345 | [secure random] |
-| JWT_REFRESH_SECRET | dev_refresh_secret_change_in_production_12345 | [secure random] |
-| ALLOWED_ORIGINS | http://localhost:5173 | https://domain.com |
-| SESSION_TIMEOUT_MINUTES | 15 | 30 |
-| SEED_DATABASE | true (optional) | false |
-
-## Generating Secure Secrets
-
-```bash
-# Generate random JWT secrets
-node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
-```
-
-## Cost Estimates (as of 2024)
-
-- **PostgreSQL**: Free ($0) or $15/month (paid)
-- **Web Service (Backend)**: Free ($0) or $7/month (paid) per 750 hours
-- **Static Site (Frontend)**: Free ($0)
-
-**Total Free Tier**: $0
-**Total Paid Tier**: ~$22/month
-
-## Troubleshooting
-
-### Database Connection Failed
-- Check DATABASE_URL is correct (use Internal URL, not External)
-- Verify backend can access database in logs
-
-### Frontend Blank Page
-- Check browser console for errors
-- Verify VITE_API_URL is correct
-- Check backend ALLOWED_ORIGINS includes frontend URL
-
-### 502 Bad Gateway
-- Check backend logs for errors
-- Verify backend is running
-- Check database connection
-
-### Seed Data Not Appearing
-- Run: `curl -X POST https://your-backend.onrender.com/api/seed`
-- Check backend logs for seed output
-
-## Scaling for Production
-
-### Enable PostgreSQL Connection Pooling
-Set in backend environment variables:
-```
-DATABASE_URL=<base_url>?max=10&connection_timeout=10000
-```
-
-### Increase Backend Resources
-- Upgrade plan from Free to Paid
-- Render will allocate more CPU/memory
-
-### Use CDN for Frontend
-- Consider Render's built-in caching
-- Or integrate Cloudflare CDN
-
-### Monitor Performance
-- Set up error tracking (Sentry)
-- Monitor database queries
-- Use Render's built-in metrics
-
-## Custom Domain (Optional)
-
-1. In Render dashboard → Service settings
-2. Under **Custom Domain**
-3. Add your domain
-4. Follow DNS configuration instructions
-
-## Rollback a Deployment
-
-1. Render automatically keeps recent builds
-2. In Service Settings → Deploys
-3. Click **Deploy** next to previous version
-4. This will rollback to that deployment
-
-## Next Steps
-
-1. Test the deployed app thoroughly
-2. Set up monitoring and alerts
-3. Plan for regular backups of database
-4. Document any custom configurations
-5. Set up CI/CD for automated testing before deploy
-
-## Support
-
-For issues:
-- Check [Render Docs](https://render.com/docs)
-- Review backend/frontend logs in Render dashboard
-- Test locally with `./app.sh start` first
+Old cost estimates, free-tier production recommendations, wildcard origin examples and HTTP seed instructions in historical guides are superseded by this document. Confirm current platform capabilities directly; none were verified against a live cloud account during this audit.

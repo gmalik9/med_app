@@ -1,215 +1,61 @@
-# 🏥 Medical Notes - Secure Patient Records System
+# Current verification and deployment guidance
 
-A secure, mobile-first web application for healthcare professionals to manage patient records and clinical notes with emphasis on security, privacy, and compliance.
+Read [QUALITY_AUDIT.md](QUALITY_AUDIT.md), [OPERATIONS.md](OPERATIONS.md), and [RENDER_DEPLOYMENT.md](RENDER_DEPLOYMENT.md) before use. They supersede historical setup, seeding and security claims below and in older summary guides. The application has been locally hardened and tested, but is **not established as production-ready for ePHI or HIPAA compliant**. Public HTTP seeding was removed; production signup and external AI default off. Use the root lockfile and Node 22.12+.
 
-## Features
+# Medical Notes
 
-### Core (MVP)
-- 🔐 **Secure Authentication** - JWT-based auth with token refresh
-- 👤 **Patient Management** - Search, create, and edit patient records
-- 📝 **Clinical Notes** - Daily note entry with date selection
-- 🔒 **Encrypted Storage** - All sensitive data encrypted at rest
-- 📊 **Audit Logging** - Track all access and modifications
-- 📱 **Mobile-First** - Responsive design optimized for mobile browsers
+A React/TypeScript frontend and Express/PostgreSQL backend for synthetic verification of patient, note, vital, appointment, visit and template workflows. Prior blanket claims of field encryption, complete access auditing, full RBAC and production readiness are retired; see the audit for observed controls and remaining gaps.
 
-### Phase 2 (Planned)
-- Patient demographics and medical history
-- Visit tracking and appointment scheduling
-- Allergies and medications management
-- Vital signs tracking
-- Session timeout and auto-logout
-- Multi-user role management
+## Start here
 
-### Phase 3 (Planned)
-- Note templates for common conditions
-- Export to PDF/print functionality
-- Advanced analytics dashboard
-- Backup & disaster recovery
-- Data retention policies
+Follow [SETUP.md](SETUP.md), the current command contract. Use **Node 22.12+ on the Node 22 line** and run `npm ci` once at the **repository root**. Do not install in each workspace. PostgreSQL 15/17 and UTC/America/New_York are CI targets, not an assertion that every combination has run remotely.
 
-## Security Features
+For disposable local development, supply explicit synthetic backend environment settings and run `npm run dev` at the root. The frontend on port 5173 uses the configured `/api` development proxy to port 5000. Create a unique synthetic account; there is no recommended shared/default login. Do not connect development or test tools to retained clinical data.
 
-✅ **Authentication & Authorization**
-- JWT token-based authentication (15min expiry)
-- Refresh tokens with 7-day expiry
-- Role-based access control (RBAC)
-- Session management with timeout
+## Configuration boundaries
 
-✅ **Data Protection**
-- SSL/TLS for all transport
-- AES-256 encryption for sensitive fields
-- Bcryptjs password hashing (salt rounds: 12)
-- Encrypted database backups
+- Backend `ALLOWED_ORIGINS` accepts comma-separated **exact origins**, HTTPS in production. No wildcards, credentials, query strings, fragments, paths or trailing slashes.
+- A separately hosted frontend needs an explicit build-time `VITE_API_URL` containing the actual HTTPS API origin without `/api`. Leave it unset only with a deliberately configured same-origin `/api` reverse proxy. Hostnames are never guessed.
+- Backend secrets must not appear in `VITE_*` settings. Use separate random signing secrets of at least 32 characters; deployment requires certificate-verified DB TLS and reviewed infrastructure controls.
+- Keep deployed `SEED_DATABASE=false`, `ALLOW_SELF_REGISTRATION=false` and `ENABLE_EXTERNAL_AI=false`. There is no public HTTP seed endpoint. Approved enrollment is unresolved, not a reason to expose signup or demo accounts.
+- Local [docker-compose.yml](docker-compose.yml) is for disposable synthetic data, not production. New launches require privately supplied `POSTGRES_PASSWORD`, `DATABASE_URL`, `JWT_SECRET` and `JWT_REFRESH_SECRET`, with no credential defaults; use the process environment or a private ignored root .env file as described in [SETUP.md](SETUP.md). Existing running containers and logins are unchanged. Do not delete/reset retained volumes or use legacy helper scripts as deployment automation.
 
-✅ **Compliance & Audit**
-- Complete audit trail of all access
-- No sensitive data in logs
-- Session timeout on inactivity
-- CORS protection
+## Verification
 
-## Tech Stack
+### Integration supplement — 2026-09-20
 
-**Frontend**
-- React 18 + TypeScript
-- Vite (build tool)
-- Axios (HTTP client)
-- CSS-in-JS (inline styles)
+The [overall implementation ledger](docs/verification/IMPLEMENTATION_STATUS.md)
+separates historical, implementer and independent evidence for tracks A–H.
+[Track I](docs/verification/track-i-integration.md) records integration contracts
+and registry-verified application image pins. Final combined release results and
+J's browser evidence are **pending**, not inferred from earlier totals.
 
-**Backend**
-- Node.js + Express
-- TypeScript
-- PostgreSQL
-- JWT (authentication)
-- bcryptjs (password hashing)
+Production boot performs **read-only** schema verification requiring versions
+**[1, 2, 3]** plus required objects/unique indexes. It never initializes/migrates.
+An approved predeploy migration job is mandatory before starting replicas; see
+[OPERATIONS.md](OPERATIONS.md#current-predeploy-cli-contract--2026-09-20).
+Root `db:check`, `db:preflight`, `db:migrate` commands use the compiled backend;
+`:source` variants require development tooling. Approval flags are not authorization.
+All Q1–Q7 decisions remain blocked; local safeguards do not establish HIPAA readiness.
 
-## Getting Started
+| Command (repository root) | Purpose |
+|---|---|
+| `npm test` | Alias of `test:unit`, including release contracts; database suites excluded, not release evidence. |
+| `npm run test:unit` | Release contract checks plus backend/frontend unit suites, no DB required. |
+| `npm run test:integration` | Required API/migration suite; absent/unapproved `TEST_DATABASE_URL` fails clearly. |
+| `npm run test:inventory` | Read-only suite classification; no DB connection or tests executed. |
+| `npm run typecheck` / `npm run lint` | No-emit checks / source lint. |
+| `npm run verify` | Guarded types, lint, units, required integration and builds. |
+| `npm run verify:release` | Adds browser tests, working-tree secret-pattern check and dependency audit. |
 
-### Prerequisites
-- Node.js 16+
-- PostgreSQL 12+
-- npm or yarn
+The guarded synthetic URL, browser prerequisites, new-schema behavior and no-concurrent-build rule are in [SETUP.md](SETUP.md). [Track A release evidence](docs/verification/track-a-release.md) records actual commands/results and unexecuted hosted checks. A skipped integration suite is **not** a release pass.
 
-### Installation
+## Documentation
 
-1. **Clone the repository**
-```bash
-cd med_app
-```
+- [OPERATIONS.md](OPERATIONS.md): environment, migration, backup/restore and incident contract.
+- [RENDER_DEPLOYMENT.md](RENDER_DEPLOYMENT.md) / [RENDER_QUICK_START.md](RENDER_QUICK_START.md): explicit separate-service configuration; no plan/vendor is preapproved.
+- [AUDIT_API_INVENTORY.md](AUDIT_API_INVENTORY.md): current API/auth boundaries and limitations.
+- [QUALITY_AUDIT.md](QUALITY_AUDIT.md) / [HARDENING_PLAN.md](HARDENING_PLAN.md): evidence, decisions and remaining work.
+- [INDEX.md](INDEX.md): navigation and retired guide entrypoints.
 
-2. **Setup Backend**
-```bash
-cd backend
-npm install
-cp .env.example .env
-# Edit .env with your settings (especially DATABASE_URL and JWT secrets)
-npm run dev
-```
-
-3. **Setup Frontend**
-```bash
-cd ../frontend
-npm install
-npm run dev
-```
-
-4. **Access the app**
-- Frontend: http://localhost:5173
-- Backend API: http://localhost:5000
-
-### Environment Configuration
-
-**Backend (.env)**
-```
-PORT=5000
-DATABASE_URL=postgresql://user:password@localhost:5432/med_app_db
-JWT_SECRET=change_me_to_a_secure_key
-JWT_REFRESH_SECRET=change_me_to_another_secure_key
-NODE_ENV=development
-ALLOWED_ORIGINS=http://localhost:3000,http://localhost:5173
-SESSION_TIMEOUT_MINUTES=15
-```
-
-**Frontend (.env)**
-```
-VITE_API_URL=http://localhost:5000
-```
-
-## Database Setup
-
-The backend automatically creates the necessary tables on startup. Ensure PostgreSQL is running and the connection string is correct.
-
-### Schema
-- **users** - Doctor/admin accounts
-- **patients** - Patient records
-- **clinical_notes** - Daily notes per patient per doctor
-- **audit_log** - Access tracking
-- **sessions** - Active user sessions
-
-## API Endpoints
-
-### Authentication
-- `POST /api/auth/register` - Register new doctor
-- `POST /api/auth/login` - Login
-- `POST /api/auth/refresh` - Refresh access token
-
-### Patients
-- `GET /api/patients/search` - Search by patient ID
-- `POST /api/patients/create` - Create new patient
-- `GET /api/patients/:id` - Get patient details
-- `PUT /api/patients/:id` - Update patient
-
-### Notes
-- `GET /api/notes/patient/:patientId` - Get today's note
-- `POST /api/notes/patient/:patientId` - Create/update note
-- `GET /api/notes/patient/:patientId/history` - Get note history
-
-## Security Best Practices
-
-1. **Never commit .env files** - Use .env.example as template
-2. **Rotate JWT secrets regularly** in production
-3. **Use strong passwords** for database and JWT secrets
-4. **Enable HTTPS** in production (use reverse proxy like nginx)
-5. **Implement rate limiting** on login endpoint
-6. **Regular security audits** and dependency updates
-7. **Database backups** encrypted and stored securely
-8. **Monitor audit logs** for suspicious activity
-
-## Development
-
-### Running Tests
-```bash
-# Backend
-cd backend
-npm test
-
-# Frontend
-cd ../frontend
-npm test
-```
-
-### Building for Production
-```bash
-# Backend
-cd backend
-npm run build
-
-# Frontend
-cd ../frontend
-npm run build
-```
-
-## Troubleshooting
-
-### Database Connection Issues
-- Ensure PostgreSQL is running
-- Check DATABASE_URL in .env
-- Verify database user has necessary permissions
-
-### CORS Errors
-- Check ALLOWED_ORIGINS in backend .env
-- Ensure frontend URL matches allowed origins
-
-### JWT Token Errors
-- Verify JWT_SECRET is set correctly
-- Check token expiration
-- Try refreshing the token
-
-## Contributing
-
-This is a medical application. Any changes should:
-1. Maintain security standards
-2. Include audit logging
-3. Preserve patient privacy
-4. Be thoroughly tested
-
-## License
-
-MIT
-
-## Support
-
-For issues or questions, please refer to the documentation or create an issue in the repository.
-
----
-
-**⚠️ Important**: This application handles sensitive medical data. Ensure you comply with all applicable healthcare regulations (HIPAA, GDPR, etc.) in your jurisdiction before deployment.
+Current shared-clinic record access, browser-readable token storage, asynchronous read auditing and incomplete identity/retention/infrastructure policies remain material production blockers. A workflow file, passing local test or vendor marketing statement is not ePHI authorization or compliance certification.

@@ -36,7 +36,7 @@ export default function DoctorProfile({ onClose }: DoctorProfileProps) {
       setDoctor(doctorInfo);
       setFormData(doctorInfo);
     } catch (err: any) {
-      console.error('Failed to load doctor profile:', err);
+      console.error('Failed to load doctor profile:');
       setError('Failed to load profile');
     } finally {
       setLoading(false);
@@ -71,7 +71,7 @@ export default function DoctorProfile({ onClose }: DoctorProfileProps) {
       setSuccess('Profile updated successfully!');
       setTimeout(() => setSuccess(''), 3000);
     } catch (err: any) {
-      console.error('Failed to save profile:', err);
+      console.error('Failed to save profile:');
       setError(err.response?.data?.error || 'Failed to save profile');
     }
   };

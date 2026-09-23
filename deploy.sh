@@ -53,30 +53,18 @@ Examples:
 EOF
 }
 
-# Generate secure random strings for JWT secrets
+# Print a credential-free checklist; provision secrets in the platform manager.
 generate_secrets() {
-    print_info "Generating secure JWT secrets..."
-    
-    jwt_secret=$(node -e "console.log(require('crypto').randomBytes(32).toString('hex'))" 2>/dev/null || echo "")
-    jwt_refresh=$(node -e "console.log(require('crypto').randomBytes(32).toString('hex'))" 2>/dev/null || echo "")
-    
-    if [ -z "$jwt_secret" ]; then
-        # Fallback for systems without Node.js
-        jwt_secret=$(openssl rand -hex 32 2>/dev/null || echo "your-secure-jwt-secret-here")
-        jwt_refresh=$(openssl rand -hex 32 2>/dev/null || echo "your-secure-refresh-secret-here")
-    fi
-    
-    print_status "JWT secrets generated"
-    
-    cat > /tmp/render_env_vars.txt << EOF
-# Copy these environment variables to Render dashboard:
+    print_info "Provision independent random JWT secrets privately in the platform secret manager."
+    cat << 'EOF'
+# Replace placeholders privately; no credentials are generated, printed or saved.
 # Service → Settings → Environment Variables
 
 PORT=5000
 NODE_ENV=production
 DATABASE_URL=<paste Internal Database URL from Render PostgreSQL>
-JWT_SECRET=$jwt_secret
-JWT_REFRESH_SECRET=$jwt_refresh
+JWT_SECRET=<independent-random-signing-secret>
+JWT_REFRESH_SECRET=<independent-random-refresh-secret>
 ALLOWED_ORIGINS=https://med-app-frontend.onrender.com
 SESSION_TIMEOUT_MINUTES=30
 SEED_DATABASE=false
@@ -84,11 +72,6 @@ SEED_DATABASE=false
 # Frontend Environment Variables (if deploying separately):
 VITE_API_URL=https://med-app-backend.onrender.com
 EOF
-    
-    echo ""
-    print_info "Environment variables saved to /tmp/render_env_vars.txt"
-    cat /tmp/render_env_vars.txt
-    echo ""
 }
 
 # Validate production build

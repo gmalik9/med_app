@@ -1,6 +1,10 @@
 import { Router, Request, Response } from 'express';
 import { query } from '../db';
 import { authenticate } from '../middleware/auth';
+import { safeDiagnostic } from '../middleware/safeAudit';
+import { auditedWrite } from '../services/auditedWrite';
+import { idempotentWrite, IdempotencyError } from '../services/idempotency';
+import { pagination, PaginationError } from '../utils/pagination';
 
 const router = Router();
 
@@ -13,29 +17,18 @@ router.post('/create', authenticate, async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Patient ID and appointment date required' });
     }
 
-    // Verify patient exists
-    const patientResult = await query('SELECT patient_id FROM patients WHERE patient_id = $1', [patientId]);
-    if (patientResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Patient not found' });
-    }
-
-    const result = await query(
+    const { result, replayed } = await idempotentWrite(req, 'CREATE_APPOINTMENT', patientId,
       `INSERT INTO appointments (patient_id, doctor_id, appointment_date, appointment_type, reason, status)
        VALUES ($1, $2, $3, $4, $5, 'scheduled')
        RETURNING *`,
       [patientId, req.user?.userId, appointmentDate, appointmentType, reason]
     );
 
-    // Log audit
-    await query(
-      `INSERT INTO audit_log (user_id, patient_id, action, ip_address)
-       VALUES ($1, $2, 'CREATE_APPOINTMENT', $3)`,
-      [req.user?.userId, patientId, req.ip]
-    );
-
+    res.setHeader('Idempotency-Replayed', String(replayed));
     res.status(201).json({ appointment: result.rows[0] });
   } catch (err) {
-    console.error('Create appointment error:', err);
+    if (err instanceof IdempotencyError) return res.status(err.status).json({ error: err.message });
+    safeDiagnostic(req, 'appointment_write_failed');
     res.status(500).json({ error: 'Failed to create appointment' });
   }
 });
@@ -55,7 +48,7 @@ router.get('/upcoming', authenticate, async (req: Request, res: Response) => {
 
     res.json({ appointments: result.rows });
   } catch (err) {
-    console.error('Get appointments error:', err);
+    safeDiagnostic(req, 'appointments_read_failed');
     res.status(500).json({ error: 'Failed to fetch appointments' });
   }
 });
@@ -70,10 +63,10 @@ router.put('/:appointmentId/status', authenticate, async (req: Request, res: Res
       return res.status(400).json({ error: 'Status required' });
     }
 
-    const result = await query(
-      `UPDATE appointments SET status = $2, updated_at = NOW() 
-       WHERE id = $1 RETURNING *`,
-      [appointmentId, status]
+    const result = await auditedWrite(req, 'UPDATE_APPOINTMENT',
+      `UPDATE appointments SET status = $2, updated_at = NOW()
+       WHERE id = $1 AND doctor_id = $3 RETURNING *`,
+      [appointmentId, status, req.user?.userId]
     );
 
     if (result.rows.length === 0) {
@@ -82,7 +75,7 @@ router.put('/:appointmentId/status', authenticate, async (req: Request, res: Res
 
     res.json({ appointment: result.rows[0] });
   } catch (err) {
-    console.error('Update appointment error:', err);
+    safeDiagnostic(req, 'appointment_status_failed');
     res.status(500).json({ error: 'Failed to update appointment' });
   }
 });
@@ -91,18 +84,23 @@ router.put('/:appointmentId/status', authenticate, async (req: Request, res: Res
 router.get('/patient/:patientId/history', authenticate, async (req: Request, res: Response) => {
   try {
     const { patientId } = req.params;
+    const paging = pagination(req.query, { endpoint: 'appointments.history', patient: String(patientId) }, 30);
 
     const result = await query(
-      `SELECT a.*, u.first_name, u.last_name FROM appointments a
+      `SELECT a.*, u.first_name, u.last_name,
+              to_char(a.appointment_date, 'YYYY-MM-DD"T"HH24:MI:SS.US') AS _cursor_timestamp FROM appointments a
        JOIN users u ON a.doctor_id = u.id
-       WHERE a.patient_id = $1 
-       ORDER BY a.appointment_date DESC LIMIT 30`,
-      [patientId]
+       WHERE a.patient_id = $1
+         AND ($3::timestamp IS NULL OR (a.appointment_date, a.id) < ($3::timestamp, $4::integer))
+       ORDER BY a.appointment_date DESC, a.id DESC LIMIT $2`,
+      [patientId, paging.limit + 1, paging.cursor?.t ?? null, paging.cursor?.id ?? null]
     );
 
-    res.json({ appointments: result.rows });
+    const { rows, ...metadata } = paging.page(result.rows);
+    res.json({ appointments: rows, ...metadata });
   } catch (err) {
-    console.error('Get appointment history error:', err);
+    if (err instanceof PaginationError) return res.status(400).json({ error: err.message });
+    safeDiagnostic(req, 'appointment_history_failed');
     res.status(500).json({ error: 'Failed to fetch appointment history' });
   }
 });

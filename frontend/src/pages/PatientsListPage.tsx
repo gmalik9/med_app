@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { apiClient } from '../utils/apiClient';
-import { useAuth } from '../hooks/useAuth';
+import { HistoryPaging, useHistoryPage } from '../components/PatientHistory';
 
 interface Patient {
   id: number;
@@ -24,27 +24,10 @@ interface PatientsListPageProps {
 }
 
 export function PatientsListPage({ onEditPatient, onBack }: PatientsListPageProps) {
-  const [patients, setPatients] = useState<Patient[]>([]);
-  const [loading, setLoading] = useState(true);
+  const page = useHistoryPage<Patient>('patients.directory', 'patients', cursor => apiClient.getPatients(50, undefined, cursor));
+  const { rows: patients, setRows: setPatients } = page;
   const [error, setError] = useState('');
   const [updating, setUpdating] = useState<number | null>(null);
-  const { user } = useAuth();
-
-  useEffect(() => {
-    fetchPatients();
-  }, []);
-
-  const fetchPatients = async () => {
-    try {
-      setLoading(true);
-      const response = await apiClient.getPatients();
-      setPatients(response.data.patients);
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to fetch patients');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const togglePatientStatus = async (patientId: number, currentStatus: boolean) => {
     try {
@@ -63,17 +46,22 @@ export function PatientsListPage({ onEditPatient, onBack }: PatientsListPageProp
     }
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString();
+  // Treat wire dates as untrusted despite the existing editor callback's
+  // nominal string fields: legacy directory created_at is nullable in SQL.
+  const formatDate = (dateString: unknown) => {
+    if (typeof dateString !== 'string') return 'Not available';
+    const match = /^(\d{4})-(\d{2})-(\d{2})(?:$|T)/.exec(dateString);
+    if (!match) return 'Not available';
+    const [, y, m, d] = match;
+    const [year, month, day] = [Number(y), Number(m), Number(d)];
+    const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+    const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    // Date silently rolls February 30 into March; reject invalid wall dates
+    // before retaining the existing local-date / timestamp display semantics.
+    if (year < 1 || month < 1 || month > 12 || day < 1 || day > days[month - 1]) return 'Not available';
+    const date = new Date(dateString.length === 10 ? `${dateString}T00:00:00` : dateString);
+    return Number.isNaN(date.getTime()) ? 'Not available' : date.toLocaleDateString();
   };
-
-  if (loading) {
-    return (
-      <div style={styles.container}>
-        <div style={styles.loading}>Loading patients...</div>
-      </div>
-    );
-  }
 
   return (
     <div style={styles.container}>
@@ -89,7 +77,7 @@ export function PatientsListPage({ onEditPatient, onBack }: PatientsListPageProp
       {error && <div style={styles.error}>{error}</div>}
 
       <div style={styles.patientsGrid}>
-        {patients.length === 0 ? (
+        {patients.length === 0 && !page.loading && !page.error ? (
           <div style={styles.emptyState}>
             <p>No patients found.</p>
           </div>
@@ -158,6 +146,7 @@ export function PatientsListPage({ onEditPatient, onBack }: PatientsListPageProp
           ))
         )}
       </div>
+      <HistoryPaging page={page} />
     </div>
   );
 }

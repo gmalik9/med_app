@@ -1,8 +1,12 @@
-import { query } from './index';
+import { transaction } from './index';
 
 export async function initializeDatabase() {
   try {
     console.log('Initializing database schema...');
+
+    await transaction(async client => {
+    await client.query('SELECT pg_advisory_xact_lock(73410291)');
+    const query = (text: string) => client.query(text);
 
     // Create users table
     await query(`
@@ -231,10 +235,11 @@ export async function initializeDatabase() {
     await query(`CREATE INDEX IF NOT EXISTS idx_audit_log_patient_id ON audit_log(patient_id)`);
     await query(`CREATE INDEX IF NOT EXISTS idx_audit_log_created_at ON audit_log(created_at)`);
     await query(`CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id)`);
+    });
 
     console.log('Database schema initialized successfully');
   } catch (err) {
-    console.error('Error initializing database:', err);
+    console.error('Error initializing database:');
     throw err;
   }
 }

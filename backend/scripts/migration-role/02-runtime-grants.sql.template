@@ -1,0 +1,23 @@
+-- REVIEW-ONLY psql template, run AFTER migrations under schema owner/DBA.
+-- Scope is the explicitly selected dedicated app schema. Do not adapt ownership
+-- of an existing production schema without a separately approved change plan.
+-- No blanket future default grants: re-review grants after EVERY migration.
+BEGIN;
+REVOKE ALL ON SCHEMA :"app_schema" FROM PUBLIC;
+REVOKE ALL ON ALL TABLES IN SCHEMA :"app_schema" FROM PUBLIC, :"runtime_role";
+REVOKE ALL ON ALL SEQUENCES IN SCHEMA :"app_schema" FROM PUBLIC, :"runtime_role";
+REVOKE ALL ON SCHEMA :"app_schema" FROM :"runtime_role";
+GRANT USAGE ON SCHEMA :"app_schema" TO :"runtime_role";
+GRANT SELECT ON ALL TABLES IN SCHEMA :"app_schema" TO :"runtime_role";
+GRANT INSERT, UPDATE ON
+  :"app_schema".users, :"app_schema".patients, :"app_schema".clinical_notes,
+  :"app_schema".appointments, :"app_schema".note_templates,
+  :"app_schema".sessions, :"app_schema".clinical_write_keys TO :"runtime_role";
+GRANT INSERT ON :"app_schema".vital_signs, :"app_schema".visit_history,
+  :"app_schema".analytics_events, :"app_schema".audit_log TO :"runtime_role";
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA :"app_schema" TO :"runtime_role";
+-- No DELETE/TRUNCATE/TRIGGER/REFERENCES, schema CREATE, sequence UPDATE, ledger
+-- schema_migrations writes, audit UPDATE/DELETE, owner membership, or grant option
+-- to runtime. clinical_write_keys INSERT/UPDATE above is intentional for atomic
+-- idempotency claim/completion; v3 adds an index, not a new grantable table.
+COMMIT;

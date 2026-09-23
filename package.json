@@ -7,14 +7,40 @@
     "dev": "concurrently \"npm run dev --workspace=backend\" \"npm run dev --workspace=frontend\"",
     "build": "npm run build --workspace=backend && npm run build --workspace=frontend",
     "start": "npm start --workspace=backend",
-    "docker:up": "docker-compose up",
-    "docker:down": "docker-compose down"
+    "test": "npm run test:unit",
+    "test:unit": "npm run test:release && npm run test:unit --workspace=backend && npm test --workspace=frontend",
+    "test:release": "node --test tests/config-*.test.mjs",
+    "test:integration": "node tests/release-runner.mjs --integration",
+    "test:inventory": "node tests/release-runner.mjs --list-suites",
+    "test:e2e": "playwright test",
+    "typecheck": "npm run typecheck --workspaces",
+    "lint": "eslint backend/src frontend/src",
+    "verify": "node tests/release-runner.mjs --verify",
+    "verify:release": "npm run verify && npm run test:e2e && node tests/check-secrets.mjs && npm audit --audit-level=low",
+    "db:check": "npm run db:check --workspace=backend --",
+    "db:preflight": "npm run db:preflight --workspace=backend --",
+    "db:migrate": "npm run db:migrate --workspace=backend --",
+    "db:check:source": "npm run db:check:source --workspace=backend --",
+    "db:preflight:source": "npm run db:preflight:source --workspace=backend --",
+    "db:migrate:source": "npm run db:migrate:source --workspace=backend --",
+    "docker:up": "docker compose up",
+    "docker:down": "docker compose down"
   },
   "workspaces": [
     "backend",
     "frontend"
   ],
+  "engines": { "node": ">=22.12.0" },
+  "overrides": {
+    "vosk-browser": {
+      "uuid": "11.1.1"
+    }
+  },
   "devDependencies": {
-    "concurrently": "^8.0.0"
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.63.0",
+    "concurrently": "^8.0.0",
+    "eslint": "^10.11.0",
+    "typescript-eslint": "^8.70.0"
   }
 }

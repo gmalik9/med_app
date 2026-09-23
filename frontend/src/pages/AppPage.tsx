@@ -13,6 +13,7 @@ import DoctorDashboard from '../components/DoctorDashboard';
 import DoctorProfile from '../components/DoctorProfile';
 import { PatientsListPage } from './PatientsListPage';
 import { useAuth } from '../hooks/useAuth';
+import { confirmDiscardChanges } from '../hooks/useUnsavedChanges';
 
 interface Patient {
   id: number;
@@ -48,6 +49,19 @@ interface ScanParsedData {
 
 type ScanDecisionState = 'idle' | 'matched' | 'new' | 'failed';
 
+interface PatientScope {
+  generation: number;
+  id: number | null;
+  identifier: string | null;
+}
+
+interface ScanBinding {
+  generation: number;
+  id: number | null;
+  identifier: string;
+  parsed: ScanParsedData;
+}
+
 export function AppPage() {
   const [patientId, setPatientId] = useState('');
   const [searchError, setSearchError] = useState('');
@@ -57,18 +71,122 @@ export function AppPage() {
   const [loading, setLoading] = useState(false);
   const { logout, user } = useAuth();
   const [isMobile, setIsMobile] = React.useState(typeof window !== 'undefined' && window.innerWidth <= 768);
+  const noteDirty = React.useRef(false);
+  const navigationGeneration = React.useRef(0);
+  const [navigationVersion, setNavigationVersion] = useState(0);
+  const currentPatient = React.useRef<Patient | null>(null);
+  const mounted = React.useRef(false);
+  const handleNoteDirtyChange = React.useCallback((dirty: boolean) => { noteDirty.current = dirty; }, []);
+
+  // A form retains the callback from its submitting render across await. Capture
+  // that render's scope, not the generation at the time its response arrives.
+  const renderedScope: PatientScope = {
+    generation: navigationVersion,
+    id: patient?.id ?? null,
+    identifier: patient?.patient_id ?? null,
+  };
+  const captureScope = (): PatientScope => ({
+    generation: navigationGeneration.current,
+    id: currentPatient.current?.id ?? null,
+    identifier: currentPatient.current?.patient_id ?? null,
+  });
+  const isCurrentScope = (scope: PatientScope) => mounted.current
+    && scope.generation === navigationGeneration.current
+    && scope.id === (currentPatient.current?.id ?? null)
+    && scope.identifier === (currentPatient.current?.patient_id ?? null);
+  const replacePatient = (next: Patient | null) => {
+    // Update the identity synchronously, before React processes queued renders.
+    currentPatient.current = next;
+    setPatient(next);
+  };
+
+  // Confirmation alone never invalidates rightful in-flight requests.
+  const confirmNavigation = () => confirmDiscardChanges(noteDirty.current);
+  const beginNavigation = () => {
+    setNavigationVersion(++navigationGeneration.current);
+    stopCamera();
+    clearScan();
+    setLoading(false);
+    setScanLoading(false);
+    setSearchError('');
+  };
+  const navigate = (destination: 'search' | 'dashboard' | 'patients' | 'profile') => {
+    if (step === destination || !confirmNavigation()) return;
+    beginNavigation();
+    setStep(destination);
+  };
+  const handleLogout = () => {
+    if (!confirmNavigation()) return;
+    beginNavigation();
+    logout();
+  };
   
   // Camera states
   const [showCamera, setShowCamera] = useState(false);
-  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
+  const cameraStream = React.useRef<MediaStream | null>(null);
+  const cameraAttachTimer = React.useRef<number | null>(null);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
-  const [scanResult, setScanResult] = useState<ScanParsedData | null>(null);
+  const [scanBinding, setScanBinding] = useState<ScanBinding | null>(null);
+  // Covers permission/encoding/OCR and the resulting review, even before an ID is known.
+  const scanAttemptActive = React.useRef(false);
+  const boundScan = scanBinding
+    && scanBinding.generation === navigationVersion
+    && scanBinding.identifier === patientId
+    && scanBinding.id === (patient?.id ?? null)
+    && (!patient || scanBinding.identifier === patient.patient_id) ? scanBinding : null;
+  const scanResult = boundScan?.parsed ?? null;
+  const scanInitialData = React.useMemo(() => scanResult ? {
+    firstName: scanResult.firstName || '',
+    lastName: scanResult.lastName || '',
+    gender: scanResult.gender || '',
+    dob: scanResult.dob || '',
+  } : undefined, [scanResult]);
   const [scanRawText, setScanRawText] = useState('');
   const [scanLoading, setScanLoading] = useState(false);
   const [scanDecision, setScanDecision] = useState<ScanDecisionState>('idle');
   const [showManualCreate, setShowManualCreate] = useState(false);
   const videoRef = React.useRef<HTMLVideoElement>(null);
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
+
+  const releaseCameraResources = React.useCallback(() => {
+    if (cameraAttachTimer.current !== null) window.clearTimeout(cameraAttachTimer.current);
+    cameraAttachTimer.current = null;
+    cameraStream.current?.getTracks().forEach(track => track.stop());
+    cameraStream.current = null;
+    if (videoRef.current) {
+      videoRef.current.onloadedmetadata = null;
+      videoRef.current.srcObject = null;
+    }
+  }, []);
+
+  React.useLayoutEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      releaseCameraResources();
+    };
+  }, [releaseCameraResources]);
+
+  const clearScan = () => {
+    scanAttemptActive.current = false;
+    setCapturedImage(null);
+    setScanBinding(null);
+    setScanRawText('');
+    setScanDecision('idle');
+    setShowManualCreate(false);
+  };
+
+  const handleSearchIdChange = (identifier: string) => {
+    if (identifier === patientId || !confirmNavigation()) return;
+    // Changing a scan's ID is new manual intent, not approval to reuse its fields.
+    // Ordinary in-flight manual searches retain their existing resolved-ID behavior.
+    if (scanAttemptActive.current || scanBinding) {
+      beginNavigation();
+      replacePatient(null);
+      setPatientExists(false);
+    }
+    setPatientId(identifier);
+  };
 
   React.useEffect(() => {
     const handleResize = () => {
@@ -80,98 +198,137 @@ export function AppPage() {
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!confirmNavigation()) return;
+    beginNavigation();
+    const current = captureScope();
     setSearchError('');
     setLoading(true);
 
     try {
       const response = await apiClient.searchPatient(patientId);
+      if (!isCurrentScope(current)) return;
+      // Commit a new view only after checking the request's originating scope.
+      beginNavigation();
       if (response.data.exists) {
-        setPatient(response.data.patient);
+        replacePatient(response.data.patient);
+        setPatientId(response.data.patient.patient_id);
         setPatientExists(true);
         setStep('edit');
       } else {
+        replacePatient(null);
+        setPatientId(patientId);
         setPatientExists(false);
         setStep('create');
       }
     } catch (err: any) {
+      if (!isCurrentScope(current)) return;
       setSearchError(err.response?.data?.error || 'Search failed');
     } finally {
-      setLoading(false);
+      if (isCurrentScope(current)) setLoading(false);
     }
   };
 
   const handlePatientCreated = (newPatient: Patient) => {
-    setPatient(newPatient);
+    if (!isCurrentScope(renderedScope)) return;
+    if (!confirmNavigation()) return;
+    beginNavigation();
+    replacePatient(newPatient);
+    setPatientId(newPatient.patient_id);
     setPatientExists(true);
     setStep('edit');
   };
 
+  const handlePatientUpdated = (updatedPatient: Patient) => {
+    if (!isCurrentScope(renderedScope)) return;
+    if (updatedPatient.id !== renderedScope.id || updatedPatient.patient_id !== renderedScope.identifier) {
+      if (!confirmNavigation()) return;
+      beginNavigation();
+    }
+    replacePatient(updatedPatient);
+    setPatientId(updatedPatient.patient_id);
+  };
+
   const handleReset = () => {
+    if (!confirmNavigation()) return;
+    beginNavigation();
     setPatientId('');
-    setPatient(null);
+    replacePatient(null);
     setPatientExists(false);
     setStep('search');
     setSearchError('');
-    setScanResult(null);
-    setScanRawText('');
-    setScanDecision('idle');
-    setShowManualCreate(false);
   };
 
   const handleActivateDeactivate = async (patientId: string | number, is_active: boolean) => {
+    const current = renderedScope;
+    if (!isCurrentScope(current) || current.id !== patientId) return false;
     try {
       await apiClient.updatePatientStatus(patientId, is_active);
-      
-      if (patient && patient.id === patientId) {
-        setPatient(prev => prev ? { ...prev, is_active } : null);
-      }
-
+      if (!isCurrentScope(current)) return false;
+      replacePatient({ ...currentPatient.current!, is_active });
       return true;
     } catch (err: any) {
+      if (!isCurrentScope(current)) return false;
       setSearchError(err.response?.data?.error || 'Failed to update patient status');
       throw err;
     }
   };
 
   const handleEditFromList = (patientFromList: Patient) => {
-    setPatient(patientFromList);
+    if (!confirmNavigation()) return;
+    beginNavigation();
+    replacePatient(patientFromList);
     setPatientId(patientFromList.patient_id);
     setPatientExists(true);
     setStep('edit');
   };
 
   const handleBackFromPatients = () => {
-    setStep('search');
+    navigate('search');
   };
 
   const handleOpenCreateFromScan = () => {
-    setPatient(null);
+    if (!confirmNavigation()) return;
+    // Only this explicit review action may carry an unmatched scan into a new view.
+    const reviewedScan = scanDecision === 'new' ? boundScan : null;
+    if (scanDecision !== 'failed' && !reviewedScan) return;
+    beginNavigation();
+    replacePatient(null);
     setPatientExists(false);
+    if (reviewedScan) {
+      setScanBinding({ ...reviewedScan, generation: navigationGeneration.current, id: null });
+    }
     setStep('create');
+    setShowManualCreate(!reviewedScan);
+  };
+
+  const handleCorrectScanId = () => {
+    if (!boundScan || !confirmNavigation()) return;
+    // Remount the real form to discard both OCR defaults and any edited A fields.
+    beginNavigation();
     setShowManualCreate(true);
   };
 
   const handleOpenEditFromScan = () => {
-    if (!patient) {
+    if (!patient || !boundScan || scanDecision !== 'matched') {
       return;
     }
 
+    if (!confirmNavigation()) return;
+    beginNavigation();
+    setPatientId(patient.patient_id);
     setPatientExists(true);
     setStep('edit');
   };
 
   // Camera functionality
   const startCamera = async () => {
+    if (!confirmNavigation()) return;
+    beginNavigation();
+    scanAttemptActive.current = true;
+    replacePatient(null);
+    setPatientExists(false);
+    const current = captureScope();
     try {
-      setCapturedImage(null);
-      setScanResult(null);
-      setScanRawText('');
-      setScanDecision('idle');
-      setShowManualCreate(false);
-      setPatient(null);
-      setPatientExists(false);
-      setSearchError('');
-
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { 
           facingMode: 'environment',
@@ -179,53 +336,65 @@ export function AppPage() {
           height: { ideal: 720 }
         }
       });
-      setCameraStream(stream);
+      if (!isCurrentScope(current)) {
+        stream.getTracks().forEach(track => track.stop());
+        return;
+      }
+      cameraStream.current = stream;
       setShowCamera(true);
       
       // Wait for next tick to ensure element is rendered
-      setTimeout(() => {
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          videoRef.current.onloadedmetadata = () => {
-            videoRef.current?.play();
-          };
-        }
+      cameraAttachTimer.current = window.setTimeout(() => {
+        cameraAttachTimer.current = null;
+        if (!isCurrentScope(current) || cameraStream.current !== stream || !videoRef.current) return;
+        const video = videoRef.current;
+        video.srcObject = stream;
+        video.onloadedmetadata = () => {
+          if (!isCurrentScope(current) || cameraStream.current !== stream) return;
+          void video.play()?.catch(() => { /* A closed/blocked camera must not affect the new view. */ });
+        };
       }, 100);
     } catch (err) {
+      if (!isCurrentScope(current)) return;
       setSearchError('Could not access camera. Please allow camera permissions.');
-      console.error('Camera error:', err);
     }
   };
 
   const stopCamera = () => {
-    if (cameraStream) {
-      cameraStream.getTracks().forEach(track => track.stop());
-      setCameraStream(null);
-    }
+    releaseCameraResources();
     setShowCamera(false);
   };
 
-  const applyScanToSearch = (parsed: ScanParsedData) => {
-    const resolvedPatientId = parsed.patientId || parsed.mrn || parsed.account || '';
-    setPatientId(resolvedPatientId);
+  const cancelCamera = () => {
+    // Unlike Capture, Cancel abandons this camera/scan generation.
+    beginNavigation();
   };
 
   const processCapturedPhoto = async (canvas: HTMLCanvasElement) => {
+    const current = captureScope();
     setScanLoading(true);
     setSearchError('');
 
     try {
       const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.92));
+      if (!isCurrentScope(current)) return;
       if (!blob) {
         throw new Error('Failed to create image from camera capture');
       }
 
       const response = await apiClient.scanPatientSticker(blob);
+      if (!isCurrentScope(current)) return;
       const { parsed, text, exists, patient: existingPatient } = response.data;
 
-      setScanResult(parsed);
+      setScanLoading(false);
+      // A matched record's resolved identity wins over OCR aliases/corrections.
+      const resolvedPatient = exists && existingPatient ? existingPatient : null;
+      const identifier = resolvedPatient?.patient_id || parsed?.patientId || parsed?.mrn || parsed?.account || '';
+      setScanBinding(parsed ? {
+        generation: current.generation, id: resolvedPatient?.id ?? null, identifier, parsed,
+      } : null);
       setScanRawText(text || '');
-      applyScanToSearch(parsed);
+      setPatientId(identifier);
 
       const hasMeaningfulParsedData = Boolean(
         parsed && (
@@ -243,19 +412,19 @@ export function AppPage() {
       const parseFailed = !hasMeaningfulParsedData && !hasRawOcrText;
 
       if (exists && existingPatient) {
-        setPatient(existingPatient);
+        replacePatient(existingPatient);
         setPatientExists(true);
         setScanDecision('matched');
         setShowManualCreate(false);
         setSearchError('Patient sticker scanned successfully. Review the parsed data below and choose Edit Patient.');
       } else if (parseFailed) {
-        setPatient(null);
+        replacePatient(null);
         setPatientExists(false);
         setScanDecision('failed');
         setShowManualCreate(false);
         setSearchError('Failed to process sticker image. You can create the patient manually.');
       } else {
-        setPatient(null);
+        replacePatient(null);
         setPatientExists(false);
         setScanDecision('new');
         setShowManualCreate(false);
@@ -266,16 +435,17 @@ export function AppPage() {
         navigator.vibrate(100);
       }
     } catch (err: any) {
+      if (!isCurrentScope(current)) return;
       setScanDecision('failed');
       setShowManualCreate(false);
       setSearchError(err.response?.data?.error || err.message || 'Failed to scan patient sticker');
     } finally {
-      setScanLoading(false);
+      if (isCurrentScope(current)) setScanLoading(false);
     }
   };
 
   const capturePhoto = () => {
-    if (videoRef.current && canvasRef.current) {
+    if (cameraStream.current && videoRef.current && canvasRef.current) {
       const video = videoRef.current;
       const canvas = canvasRef.current;
       canvas.width = video.videoWidth;
@@ -308,19 +478,19 @@ export function AppPage() {
   return (
     <div style={styles.container}>
       <Header
-        onNavigate={(step: 'search' | 'dashboard' | 'patients' | 'profile') => setStep(step)}
+        onNavigate={navigate}
         userEmail={user?.email}
-        onLogout={logout}
+        onLogout={handleLogout}
       />
 
       <main style={{ ...styles.main, padding: isMobile ? '16px' : '24px' }}>
         {step === 'profile' && (
-          <DoctorProfile onClose={() => setStep('search')} />
+          <DoctorProfile onClose={() => navigate('search')} />
         )}
 
         {step === 'dashboard' && (
           <div>
-            <button onClick={() => setStep('search')} style={styles.backButton}>
+            <button onClick={() => navigate('search')} style={styles.backButton}>
               ← Back to Search
             </button>
             <DoctorDashboard />
@@ -341,7 +511,7 @@ export function AppPage() {
                 type="text"
                 placeholder="Enter Patient ID (e.g., P001) - will create if not found"
                 value={patientId}
-                onChange={(e) => setPatientId(e.target.value)}
+                onChange={(e) => handleSearchIdChange(e.target.value)}
                 required
                 style={styles.input}
                 autoFocus
@@ -361,7 +531,7 @@ export function AppPage() {
                   <video ref={videoRef} autoPlay playsInline style={styles.cameraFeed} />
                   <canvas ref={canvasRef} style={{ display: 'none' }} />
                   <div style={styles.cameraControls}>
-                    <button onClick={stopCamera} style={styles.cancelCameraBtn}>
+                    <button onClick={cancelCamera} style={styles.cancelCameraBtn}>
                       ✕ Cancel
                     </button>
                     <button onClick={capturePhoto} style={styles.captureBtn}>
@@ -372,7 +542,7 @@ export function AppPage() {
               </div>
             )}
             <div style={styles.searchActions}>
-              <button onClick={() => setStep('patients')} style={styles.viewAllBtn}>
+              <button onClick={() => navigate('patients')} style={styles.viewAllBtn}>
                 View All Patients
               </button>
             </div>
@@ -401,7 +571,7 @@ export function AppPage() {
                   {scanResult && (
                     <button
                       type="button"
-                      onClick={() => applyScanToSearch(scanResult)}
+                      onClick={() => { if (boundScan) setPatientId(boundScan.identifier); }}
                       style={styles.useScanButton}
                     >
                       Use MRN for Search
@@ -473,23 +643,26 @@ export function AppPage() {
         )}
 
         {step === 'create' && (
-          <PatientForm
-            patientId={patientId}
-            initialData={scanResult ? {
-              firstName: scanResult.firstName || '',
-              lastName: scanResult.lastName || '',
-              gender: scanResult.gender || '',
-              dob: scanResult.dob || '',
-            } : undefined}
-            allowPatientIdEdit={scanDecision === 'failed' || showManualCreate}
-            onPatientIdChange={setPatientId}
-            onCreated={handlePatientCreated}
-            onCancel={handleReset}
-          />
+          <>
+            {boundScan && (
+              <button type="button" onClick={handleCorrectScanId} style={styles.backButton}>
+                Clear sticker fields to correct Patient ID
+              </button>
+            )}
+            <PatientForm
+              key={`create-${navigationVersion}`}
+              patientId={patientId}
+              initialData={scanInitialData}
+              allowPatientIdEdit={showManualCreate && !boundScan}
+              onPatientIdChange={setPatientId}
+              onCreated={handlePatientCreated}
+              onCancel={handleReset}
+            />
+          </>
         )}
 
         {step === 'edit' && patient && (
-          <div style={styles.editContainer}>
+          <div key={`edit-${navigationVersion}-${patient.id}-${patient.patient_id}`} style={styles.editContainer}>
             <button onClick={handleReset} style={styles.backButton}>
               ← Back to Search
             </button>
@@ -499,7 +672,7 @@ export function AppPage() {
                 <PatientForm
                   patientId={patientId}
                   initialData={patient}
-                  onCreated={setPatient}
+                  onCreated={handlePatientUpdated}
                   onCancel={handleReset}
                   isEdit
                   onStatusChange={handleActivateDeactivate}
@@ -507,7 +680,7 @@ export function AppPage() {
               </div>
 
               <div style={styles.column}>
-                <NoteEditor patientId={patient.patient_id} />
+                <NoteEditor patientId={patient.patient_id} onDirtyChange={handleNoteDirtyChange} />
               </div>
             </div>
 

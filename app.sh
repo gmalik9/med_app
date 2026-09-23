@@ -96,12 +96,10 @@ start_services() {
         
         print_info "Default credentials:"
         echo "  Email:      doctor@hospital.com"
-        echo "  Password:   SecurePass123!"
+        echo "  Password:   supplied privately through SEED_PASSWORD (existing account unchanged)"
         
         if [ "$seed_db" = "true" ]; then
-            print_info "Seeding database with dummy data..."
-            sleep 2
-            curl -s -X POST http://localhost:5001/api/seed > /dev/null 2>&1 && print_status "Database seeded!" || print_warning "Dummy data seeding may have failed, check logs"
+            print_warning "Local synthetic seeding runs once during backend startup; verify backend logs. No HTTP seed endpoint exists."
         fi
         
         return 0
@@ -289,7 +287,7 @@ rebuild() {
         
         print_info "Default credentials:"
         echo "  Email:      doctor@hospital.com"
-        echo "  Password:   SecurePass123!"
+        echo "  Password:   supplied privately through SEED_PASSWORD (existing account unchanged)"
         
         return 0
     else

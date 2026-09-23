@@ -1,25 +1,24 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { apiClient } from '../utils/apiClient';
+import { useIdempotentSubmission } from '../hooks/useIdempotentSubmission';
+import { HistoryPaging, useHistoryPage } from './PatientHistory';
 
 interface Props { patientId: string | number; }
 
 export default function VisitsCard({ patientId }: Props) {
   const [form, setForm] = useState({ visitType: '', chiefComplaint: '', diagnosis: '', treatmentProvided: '', followupInstructions: '', nextVisitDate: '' });
-  const [visits, setVisits] = useState<any[]>([]);
+  const page = useHistoryPage(`visits:${patientId}`, 'visits', cursor => apiClient.getVisitHistory(patientId, 30, cursor));
+  const visits = page.rows;
   const [error, setError] = useState('');
+  const submission = useIdempotentSubmission('visit', String(patientId), form);
 
-  const loadVisits = async () => {
-    const response = await apiClient.getVisitHistory(patientId);
-    setVisits(response.data.visits || []);
-  };
-
-  useEffect(() => { loadVisits().catch(() => undefined); }, [patientId]);
+  const loadVisits = page.refreshAll;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     try {
-      await apiClient.createVisit(patientId, form);
+      if (!await submission.submit(key => apiClient.createVisit(patientId, form, key))) return;
       setForm({ visitType: '', chiefComplaint: '', diagnosis: '', treatmentProvided: '', followupInstructions: '', nextVisitDate: '' });
       await loadVisits();
     } catch (err: any) {
@@ -31,15 +30,18 @@ export default function VisitsCard({ patientId }: Props) {
     <div style={styles.card}>
       <h3 style={styles.title}>Visits</h3>
       {error && <div style={styles.error}>{error}</div>}
+      {submission.notice && <div role="status">{submission.notice}</div>}
+      {submission.uncertain && <button type="button" disabled={submission.pending} onClick={submission.acknowledgeReconciled}>History checked — start new submission</button>}
       <form onSubmit={handleSubmit} style={styles.form}>
         {Object.entries({ visitType: 'Visit Type', chiefComplaint: 'Chief Complaint', diagnosis: 'Diagnosis', treatmentProvided: 'Treatment', followupInstructions: 'Follow-up Instructions', nextVisitDate: 'Next Visit Date' }).map(([key, label]) => (
           key === 'nextVisitDate'
             ? <input key={key} type="date" value={(form as any)[key]} onChange={(e) => setForm((p) => ({ ...p, [key]: e.target.value }))} style={styles.input} />
             : <input key={key} placeholder={label} value={(form as any)[key]} onChange={(e) => setForm((p) => ({ ...p, [key]: e.target.value }))} style={styles.input} />
         ))}
-        <button type="submit" style={styles.button}>Save Visit</button>
+        <button type="submit" disabled={submission.pending} style={styles.button}>{submission.uncertain ? 'Retry same submission' : 'Save Visit'}</button>
       </form>
-      <div style={styles.list}>{visits.slice(0, 5).map((visit) => <div key={visit.id} style={styles.item}>{new Date(visit.visit_date).toLocaleString()} • {visit.visit_type || 'Visit'} • {visit.diagnosis || 'No diagnosis'}</div>)}</div>
+      <div style={styles.list}>{visits.map((visit) => <div key={visit.id} style={styles.item}>{new Date(visit.visit_date).toLocaleString()} • {visit.visit_type || 'Visit'} • {visit.diagnosis || 'No diagnosis'}</div>)}</div>
+      <HistoryPaging page={page} />
     </div>
   );
 }

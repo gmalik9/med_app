@@ -1,5 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { apiClient } from '../utils/apiClient';
+import { useIdempotentSubmission } from '../hooks/useIdempotentSubmission';
+import { HistoryPaging, useHistoryPage } from './PatientHistory';
 
 interface Props {
   patientId: string | number;
@@ -18,9 +20,14 @@ export default function VitalsCard({ patientId }: Props) {
     height: '',
     notes: '',
   });
-  const [latest, setLatest] = useState<any>(null);
-  const [history, setHistory] = useState<any[]>([]);
-  const [saving, setSaving] = useState(false);
+  const latestPage = useHistoryPage(`latest-vitals:${patientId}`, 'records', async () => {
+    const response = await apiClient.getLatestVitals(patientId);
+    return { data: { records: response.data.vitalSigns ? [response.data.vitalSigns] : [], hasMore: false, nextCursor: null } };
+  });
+  const latest = latestPage.rows[0];
+  const page = useHistoryPage(`vitals:${patientId}`, 'vitalSigns', cursor => apiClient.getVitalsHistory(patientId, 20, cursor));
+  const history = page.rows;
+  const submission = useIdempotentSubmission('vitals', String(patientId), form);
   const [error, setError] = useState('');
   const [showHistory, setShowHistory] = useState(false);
 
@@ -32,54 +39,31 @@ export default function VitalsCard({ patientId }: Props) {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const loadLatest = async () => {
-    try {
-      const response = await apiClient.getLatestVitals(patientId);
-      setLatest(response.data.vitalSigns);
-    } catch (err) {
-      console.error('Error loading latest vitals:', err);
-    }
-  };
-
-  const loadHistory = async () => {
-    try {
-      const response = await apiClient.getVitalsHistory(patientId, 20);
-      setHistory(response.data.vitals || []);
-    } catch (err) {
-      console.error('Error loading vitals history:', err);
-    }
-  };
-
-  useEffect(() => {
-    loadLatest();
-    loadHistory();
-  }, [patientId]);
+  const loadLatest = latestPage.reload;
+  const loadHistory = page.refreshAll;
 
   const handleChange = (key: string, value: string) => setForm((prev) => ({ ...prev, [key]: value }));
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSaving(true);
     setError('');
     try {
-      await apiClient.recordVitals(patientId, {
-        temperature: form.temperature || null,
-        heartRate: form.heartRate || null,
-        bloodPressureSystolic: form.bloodPressureSystolic || null,
-        bloodPressureDiastolic: form.bloodPressureDiastolic || null,
-        respiratoryRate: form.respiratoryRate || null,
-        oxygenSaturation: form.oxygenSaturation || null,
-        weight: form.weight || null,
-        height: form.height || null,
+      if (!await submission.submit(key => apiClient.recordVitals(patientId, {
+        temperature: form.temperature ? Number(form.temperature) : null,
+        heartRate: form.heartRate ? Number(form.heartRate) : null,
+        bloodPressureSystolic: form.bloodPressureSystolic ? Number(form.bloodPressureSystolic) : null,
+        bloodPressureDiastolic: form.bloodPressureDiastolic ? Number(form.bloodPressureDiastolic) : null,
+        respiratoryRate: form.respiratoryRate ? Number(form.respiratoryRate) : null,
+        oxygenSaturation: form.oxygenSaturation ? Number(form.oxygenSaturation) : null,
+        weight: form.weight ? Number(form.weight) : null,
+        height: form.height ? Number(form.height) : null,
         notes: form.notes,
-      });
+      }, key))) return;
       setForm({ temperature: '', heartRate: '', bloodPressureSystolic: '', bloodPressureDiastolic: '', respiratoryRate: '', oxygenSaturation: '', weight: '', height: '', notes: '' });
       await loadLatest();
       await loadHistory();
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to record vitals');
-    } finally {
-      setSaving(false);
     }
   };
 
@@ -87,7 +71,10 @@ export default function VitalsCard({ patientId }: Props) {
     <div style={styles.card}>
       <h3 style={styles.title}>Vital Signs</h3>
       {latest && <div style={styles.meta}>Latest: {new Date(latest.recorded_date).toLocaleString()}</div>}
+      {latestPage.error && <div role="alert">{latestPage.error} <button type="button" onClick={loadLatest}>Retry latest vitals</button></div>}
       {error && <div style={styles.error}>{error}</div>}
+      {submission.notice && <div role="status">{submission.notice}</div>}
+      {submission.uncertain && <button type="button" disabled={submission.pending} onClick={submission.acknowledgeReconciled}>History checked — start new submission</button>}
       <form onSubmit={handleSubmit} style={{ ...styles.grid, gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, minmax(0, 1fr))' }}>
         {[
           ['temperature', 'Temperature'],
@@ -102,7 +89,7 @@ export default function VitalsCard({ patientId }: Props) {
           <input key={key} placeholder={label} value={(form as any)[key]} onChange={(e) => handleChange(key, e.target.value)} style={styles.input} />
         ))}
         <textarea placeholder="Notes" value={form.notes} onChange={(e) => handleChange('notes', e.target.value)} style={styles.textarea} />
-        <button type="submit" disabled={saving} style={styles.button}>{saving ? 'Saving...' : 'Record Vitals'}</button>
+        <button type="submit" disabled={submission.pending} style={styles.button}>{submission.pending ? 'Saving...' : submission.uncertain ? 'Retry same submission' : 'Record Vitals'}</button>
       </form>
 
       <div style={styles.historySection}>
@@ -117,8 +104,8 @@ export default function VitalsCard({ patientId }: Props) {
         {showHistory && (
           <div style={styles.history}>
             {history.length > 0 ? (
-              history.map((vital, idx) => (
-                <div key={idx} style={styles.historyItem}>
+              history.map((vital) => (
+                <div key={vital.id} style={styles.historyItem}>
                   <div style={styles.vitalTimestamp}>
                     {new Date(vital.recorded_date).toLocaleString()}
                   </div>
@@ -134,8 +121,9 @@ export default function VitalsCard({ patientId }: Props) {
                 </div>
               ))
             ) : (
-              <div style={styles.noHistory}>No vitals recorded yet</div>
+              !page.loading && !page.error && <div style={styles.noHistory}>No vitals recorded yet</div>
             )}
+            <HistoryPaging page={page} />
           </div>
         )}
       </div>

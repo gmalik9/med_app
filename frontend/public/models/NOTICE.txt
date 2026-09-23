@@ -1,0 +1,39 @@
+LOCAL VOSK DICTATION — THIRD-PARTY ATTRIBUTION AND MODIFICATION NOTICE
+
+Model: vosk-model-small-en-in-0.4 (Indian English)
+Publisher: Alpha Cephei / Vosk project
+Official catalog: https://alphacephei.com/vosk/models
+Source: https://alphacephei.com/vosk/models/vosk-model-small-en-in-0.4.zip
+License: Apache License 2.0, per the official model catalog (2026-09-22).
+See LICENSE-APACHE-2.0.txt, distributed beside this notice.
+Original model README: "Indian English model for mobile Vosk applications"
+The source ZIP includes that README but no separate LICENSE or NOTICE file.
+
+Changes: the ZIP was repacked as a deterministic gzip/USTAR archive rooted at
+model/. File bytes, including the original README, are unchanged. Metadata,
+ordering and container format are normalized for vosk-browser compatibility.
+The manifest records SHA256 values measured locally. Source trust begins with
+the first verified-TLS download; these are NOT publisher-signed checksums.
+
+Runtime: vosk-browser 0.0.8 by Ciaran O'Reilly
+https://github.com/ccoreilly/vosk-browser
+License: Apache-2.0, confirmed in the exact npm package metadata.
+The generated worker retains all embedded source notices, including the
+Microsoft TypeScript helper permission notice. The npm package contains no
+separate LICENSE/NOTICE file. The embedded WASM is redistributed unchanged.
+
+Changes: the embedded worker is self-hosted as a standalone same-origin script;
+console output is disabled in that worker only; embedded WASM is decoded without
+a data-URL fetch; a serialized bridge calls the original RecognizerWorker methods
+and labels FinalResult replies so Stop waits for the actual final result. Its
+fetch wrapper allows only the same-origin model URL, with no credentials or
+redirects. No recognition data is written to IndexedDB; Vosk caches model files.
+
+The application page does not permit JavaScript eval. The worker response alone
+permits unsafe-eval because this exact runtime's Emscripten bindings use
+createNamedFunction/new Function and craftInvokerFunction/new_(Function,...).
+
+This is a general-purpose, accent-specific model, not a validated clinical
+transcription system. Review all dictated text before saving. No automatic
+punctuation, medical-vocabulary accuracy, or offline first-visit guarantee is
+claimed. The pilot remains synthetic-only.
